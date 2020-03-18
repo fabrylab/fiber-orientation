@@ -49,8 +49,7 @@ def polar_coordinate_transform(im, center, radius_res=2000, angle_res=2000):
     # generating a grid of angles and radii
 
     # pixel_size_input = pixel_size_out  * r_factor
-    r_factor = ((np.sqrt(2)*np.max(im.shape)/2)*1.2)/radius_resactor
-
+    r_factor = ((np.sqrt(2) * np.max(im.shape) / 2) * 1.2) / radius_res
     rs = np.linspace(0,(np.sqrt(2)*np.max(im.shape)/2)*1.2,radius_res)
     phis = np.linspace(0,2*np.pi,angle_res)
     r_grid, phi_grid = np.meshgrid(rs, phis)
