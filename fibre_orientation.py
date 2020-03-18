@@ -267,36 +267,6 @@ for c,m in enumerate(im_list):
     
 
     plt.clf()
-    #plt.clf()
 
 
-"""
-Testing
-"""
-# # fibres with out spheroid
-# im = np.asarray(Image.open("/home/user/Desktop/biophysDS/abauer/testing_orientation/Series001_z000_ch00.tif").convert("L"))
-# polar_array, max_radius, center= polar_coordinate_transform(im, center="image",radius_res=2000, angle_res=2000)
-# plt.figure();plt.imshow(im)
-# plt.figure();plt.imshow(polar_array)
 
-
-# # example of a pure grid
-# im = np.asarray(Image.open("/home/user/Desktop/biophysDS/abauer/testing_orientation/pure_grid.png").convert("L"))
-# polar_array, max_radius, center= polar_coordinate_transform(im, center="image",radius_res=2000, angle_res=2000)
-# plt.figure();plt.imshow(im,cmap="Greys_r")
-# plt.figure();plt.imshow(polar_array)
-
-# # slightly shifted image
-# im = np.asarray(Image.open("/home/user/Desktop/biophysDS/abauer/testing_orientation/pure_grid.png").convert("L"))
-# polar_array, max_radius, center= polar_coordinate_transform(im, center=(200,200),radius_res=2000, angle_res=2000)
-# plt.figure();plt.imshow(im,cmap="Greys_r")
-# plt.figure();plt.imshow(polar_array,cmap="Greys_r")
-
-
-#window_size = 10
-#step_size = 5
-#i=4
-#slice1=polar_array[step_size*i:window_size+step_size*i,:]
-#i=5
-#slice2=polar_array[step_size*i:window_size+step_size*i,:]
-#np.corrcoef(slice1.flatten(),slice2)
