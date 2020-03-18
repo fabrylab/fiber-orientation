@@ -48,7 +48,9 @@ def polar_coordinate_transform(im, center, radius_res=2000, angle_res=2000):
 
     # generating a grid of angles and radii
 
-    #r_factor=((np.sqrt(2)*np.max(im.shape)/2)*1.2) /radius_res # pixel_size_output = pixel_size_input * r_factor
+    # pixel_size_input = pixel_size_out  * r_factor
+    r_factor = ((np.sqrt(2)*np.max(im.shape)/2)*1.2)/radius_resactor
+
     rs = np.linspace(0,(np.sqrt(2)*np.max(im.shape)/2)*1.2,radius_res)
     phis = np.linspace(0,2*np.pi,angle_res)
     r_grid, phi_grid = np.meshgrid(rs, phis)
@@ -75,7 +77,7 @@ def polar_coordinate_transform(im, center, radius_res=2000, angle_res=2000):
     # finding a maximum radius where points for all angles are defined
     max_radius = np.min(np.where(np.isnan(polar_array))[0])
 
-    return polar_array, max_radius,center
+    return polar_array, max_radius, center, r_factor
 
 def display_slices(start,window_size, window_dist, polar_array):
     r1 = [start, window_size + start]
@@ -99,6 +101,10 @@ center=regionprops(mask.astype(int))[0].centroid
 
 
 polar_array, max_radius, center = polar_coordinate_transform(im, center, radius_res=2000, angle_res=2000)
+#ax_factor = r_factor * pixel_size # y_axis[pixel]*ax_factor --> y_axis[µn]
+
+
+
 #plt.figure();plt.imshow(im)
 #plt.figure();plt.imshow(polar_array)
 
