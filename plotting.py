@@ -3,13 +3,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 import sys
 sys.path.append("/home/user/Software/fiber-orientation")
-from angeling import *
+from angles import *
 
 
 def vizualize_angles(angles, points, vecs1, vecs2, arrows=True, image=None, normalize=True, size_factor=10, text=True, sample_factor=10,cbar_max_angle=None):
     fig=plt.figure()
     if isinstance(image, np.ndarray):
-        plt.imshow(image)
+        plt.imshow(image,cmap="Greys")
     # normalization and creating a color range
     colors = matplotlib.cm.get_cmap("Greens")(angles/np.max(angles))
     for i,(p,v1,v2,c) in enumerate(zip(points,vecs1,vecs2,colors)):
@@ -33,10 +33,10 @@ def vizualize_angles(angles, points, vecs1, vecs2, arrows=True, image=None, norm
     cbar.ax.set_ylabel("angle [rad]",fontsize=20)
     return fig
 
-def display_spatial_angle_distribution(points,angles,bins=None):
+def display_spatial_angle_distribution(points,angles,bins=None,fig_paras={},imshow_paras={"cmap":"Greens"}):
     hist = spatial_angle_distribution(points,angles,bins=bins)
-    fig=plt.figure()
-    plt.imshow(hist,cmap="Greens")
+    fig=plt.figure(**fig_paras)
+    plt.imshow(hist,**imshow_paras)
     cbar=plt.colorbar()
     cbar.ax.set_ylabel("angle [rad]",fontsize=20)
     return fig
@@ -63,3 +63,19 @@ def diplay_radial_angle_distribution(points, center, angles, bins, plt_labels=["
     return fig
 
 
+def add_colorbar(vmin,vmax, cmap,ax,cbar_style,cbar_width,cbar_height,cbar_borderpad,cbar_tick_label_size,cbar_str,cbar_axes_fraction):
+    # adding colorbars inside or outside of plots
+    norm = matplotlib.colors.Normalize(vmin=vmin, vmax=vmax)
+    sm = plt.cm.ScalarMappable(cmap=matplotlib.cm.get_cmap(cmap), norm=norm)
+    if cbar_style == "clickpoints": # colorbar inside of the plot
+        cbaxes = inset_axes(ax, width=cbar_width, height=cbar_height, loc=5, borderpad=cbar_borderpad)
+        cb0 = plt.colorbar(sm,cax=cbaxes)
+        cbaxes.set_title(cbar_str, color="white",pad=20,fontsize=20)
+        cbaxes.tick_params(colors="white",labelsize=cbar_tick_label_size)
+        cb0.set_ticks(np.linspace(0,np.pi/2,8),)
+        cbaxes.set_yticklabels([r"$0$"]+[r"$\frac{%s\pi}{%s}$"%s for s in [("","16"),("","8"),("3","16"),("","4"),("5","16"),("3","8"),("","2")]])
+    else: # colorbar outide of the plot
+        cb0=plt.colorbar(sm, aspect=20, shrink=0.8,fraction=cbar_axes_fraction) # just exploiting the axis generation by a plt.colorbar
+        cb0.outline.set_visible(False)
+        cb0.ax.tick_params(labelsize=cbar_tick_label_size)
+        cb0.ax.set_title(cbar_str, color="black")

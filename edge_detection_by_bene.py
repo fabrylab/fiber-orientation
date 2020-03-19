@@ -12,7 +12,7 @@ import clickpoints
 import sys
 sys.path.append("/home/user/Software/fiber-orientation")
 from plotting import *
-from angeling import *
+from angles import *
 from fibre_orientation import benes_edge_detection_method
 #import os
 #os.chdir("/home/user/Software/fiber-orientation")
@@ -26,7 +26,7 @@ db.db.close()
 center=np.array(regionprops(mask.astype(int))[0].centroid)
 
 c_vecs = np.array([[center[0]-p[0],center[1]-p[1]] for p in l_points])
-ta = calculate_angle(l_vecs,c_vecs,axis=1)
+ta = calculate_angle(l_vecs,c_vecs, axis=1)
 ta_adjusted = project_angle(ta)
 fig_angles1=vizualize_angles(ta_adjusted, l_points, l_vecs,c_vecs ,image=im ,sample_factor=4, size_factor=30, text=False, arrows=True)
 #diplay_radial_angle_distribution(l_points,center,ta_adjusted, 100)

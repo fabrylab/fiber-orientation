@@ -9,6 +9,8 @@ def radial_angle_distribution(points,center,angles,bins):
     return bins, hist
 
 def spatial_angle_distribution(points,angles,bins=None):
+    if not isinstance(bins,(np.ndarray,int,float)):
+        bins = 10 # defuatl value innp.histogram2d
     hist1, bins1x, bins1y = np.histogram2d(points[:,0],points[:,1],weights=angles)
     hist2, bins2x, bins2y = np.histogram2d(points[:, 0], points[:, 1])
     hist=np.swapaxes(hist1/hist2,axis1=0,axis2=1) # hist returns x,y array, im is in y,x array
