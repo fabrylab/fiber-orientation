@@ -1,4 +1,5 @@
 import numpy as np
+from skimage.measure import regionprops,label
 import matplotlib.pyplot as plt
 from scipy import ndimage as ndi
 import clickpoints
@@ -10,7 +11,38 @@ from skimage.morphology import skeletonize,remove_small_objects
 import cv2
 from skimage.measure import regionprops
 from matplotlib import patches
+from tqdm import tqdm
+import scipy.optimize as opt
 
+
+def benes_edge_detection_method(im, minVal=50, maxVal=200, area_threshold=10):
+    edges = cv2.Canny(im,minVal,maxVal)
+
+    labels = label(edges)
+
+    regions = regionprops(labels)
+    angles_rad= np.array([])
+    sizes = np.array([])
+    for region in regions:
+        angles_rad= np.append(angles_rad,region.orientation)
+        sizes= np.append(sizes,region.area)
+
+    def linear_model(x,m,t):
+        return(m*x + t)
+
+    all_lines=[]
+
+    for region in tqdm(regions):  ### even better would be to weight the moments with origninal image???
+        if region.area > area_threshold:
+            p_opt,p_cov = opt.curve_fit(linear_model,region.coords[:,1],region.coords[:,0], p0= [0,0])
+            #plt.plot(region.coords[:,1],linear_model(region.coords[:,1],p_opt[0],p_opt[1]))
+            all_lines.append(np.array([region.coords[:,1],linear_model(region.coords[:,1],p_opt[0],p_opt[1])]))
+        #
+   #plt.axis("equal")
+    l_vecs = np.array([[l[0][-1] - l[0][0], l[1][-1] - l[1][0]] for l in all_lines])
+    l_points = np.array([[l[0][0], l[1][0]] for l in all_lines])
+    l_length= np.linalg.norm(l_vecs, axis=1)
+    return l_vecs, l_points, l_length
 
 def normalizing(img,lq=0,uq=100):
     img = img - np.percentile(img, lq)  # 1 Percentile
