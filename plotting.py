@@ -1,9 +1,46 @@
 import matplotlib
 import matplotlib.pyplot as plt
-import numpy as np
 import sys
+import os
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+from tqdm import tqdm
 sys.path.append("/home/user/Software/fiber-orientation")
 from angles import *
+from database_functions import *
+
+
+
+def plot_angles_database(db, start_frame, end_frame, orient_line, folder = "angle_plot_tracks"):
+    # produces a video that shows the movement vector of the cell, a second vector and the angle
+    # to this vector
+
+    # reading frames
+    vecs, points, frames = read_tracks_list_by_frame(db,start_frame,end_frame)
+    # calculating angles
+    angs = calculate_angle(vecs, orient_line, axis=1)
+    angs = project_angle(angs)
+    plt.ioff()
+    createFolder(folder)
+    with OpenDB(db) as db_l:
+        for frame in tqdm(range(start_frame,end_frame-1)):
+            # filtering for the correct frame// could be rather slow// better would be to constt
+            l_frame_mask=frames==frame
+            l_p = points[l_frame_mask]
+            l_vec = vecs[l_frame_mask]
+            l_ang = angs[l_frame_mask]
+            ol_vecs = np.repeat(np.expand_dims(orient_line, axis=0), len(l_p), axis=0)
+            try:
+                im = db_l.getImage(frame=frame).data
+            except FileNotFoundError:
+                im = None
+            fig=vizualize_angles(l_ang, l_p, l_vec, ol_vecs, image=im, arrows=True, normalize=True, size_factor=100,
+                           text=False, sample_factor=1,cbar_max_angle = np.pi/2)
+            fig.savefig(os.path.join(folder,"frame%s.png"%str(frame).zfill(4)))
+            plt.close(fig)
+    plt.ion()
+    command = 'ffmpeg -s 1000x796 -framerate 10 -y -i "%s"  -vcodec mpeg4 -b 10000k  "%s"' % (
+                                 os.path.join(folder, "frame%04d.png"), os.path.join(folder, "angles.mp4"))
+    os.system(command)
 
 
 def vizualize_angles(angles, points, vecs1, vecs2, arrows=True, image=None, normalize=True, size_factor=10, text=True, sample_factor=10,cbar_max_angle=None):
