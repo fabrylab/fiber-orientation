@@ -7,7 +7,7 @@ from tqdm import tqdm
 sys.path.append("/home/user/Software/fiber-orientation")
 from angles import *
 from database_functions import *
-
+import datetime
 
 
 def plot_angles_database(db, start_frame, end_frame, orient_line, folder = "angle_plot_tracks"):
@@ -70,11 +70,14 @@ def vizualize_angles(angles, points, vecs1, vecs2, arrows=True, image=None, norm
     cbar.ax.set_ylabel("angle [rad]",fontsize=20)
     return fig
 
-def display_spatial_angle_distribution(points,angles,bins=None,fig_paras={},imshow_paras={"cmap":"Greens"}):
+def display_spatial_angle_distribution(points,angles,bins=None,fig_paras={},imshow_paras={"cmap":"Greens"},bg="Greys"):
     hist = spatial_angle_distribution(points,angles,bins=bins)
     fig=plt.figure(**fig_paras)
+    if isinstance(bg,(str,tuple,list)): # plotting a background( is there no better way??
+        plt.imshow(np.zeros(hist.shape)+1,vmin=0,vmax=2,cmap=bg)
     plt.imshow(hist,**imshow_paras)
     cbar=plt.colorbar()
+    cbar.ax.tick_params(labelsize=20)
     cbar.ax.set_ylabel("angle [rad]",fontsize=20)
     return fig
 
@@ -116,3 +119,53 @@ def add_colorbar(vmin,vmax, cmap,ax,cbar_style,cbar_width,cbar_height,cbar_borde
         cb0.outline.set_visible(False)
         cb0.ax.tick_params(labelsize=cbar_tick_label_size)
         cb0.ax.set_title(cbar_str, color="black")
+
+def plot_binned_angle_fileds(vecs, points, frames, orient_line, binsize_time=200, step_size=100, bins_space=30,
+                         folder="", e_points=None, plot_line=True, hist_mask=None, im=None, max_frame=None):
+    plt.ioff()
+    max_frame = np.max(frames) if not isinstance(max_frame,(int,float)) else max_frame
+    angs = calculate_angle(vecs, orient_line, axis=1)
+    angs = project_angle(angs)
+    for i,s in tqdm(enumerate(range(0,max_frame-binsize_time,step_size))):
+        time_mask=np.logical_and(frames>=s,  frames<(s+binsize_time))
+        vecs_bin = vecs[time_mask]
+        points_bin = points[time_mask]
+        angs_bin = angs[time_mask]
+
+        ### angle evaluation --> see angle_illustration_spheroid_spheroid_axis.py
+
+        fig1 = display_spatial_angle_distribution(points_bin, angs_bin, bins=bins_space
+                    ,fig_paras={"figsize":(10,7.96511),"frameon":False,"facecolor":"grey"},
+                        imshow_paras={"cmap":"Greens","vmin":0,"vmax":np.pi/2,"origin":"upper"})
+        plt.axis("off")
+        ax = plt.gca()
+        #if plot_line:
+        #    plt.plot([e_points[0][0], e_points[3][0]], [e_points[0][1], e_points[3][1]])
+        t1= str(datetime.timedelta(seconds=s*60*2)) # 2 is frame rate in minutes
+        t2= str(datetime.timedelta(seconds=(s+binsize_time)*60*2))
+        ax.text(0.3, 0.9, "time: %s to %s"%(t1,t2) , transform=ax.transAxes, fontsize=20)
+        fig1.savefig(os.path.join(folder,"frame%s.png"%(str(i).zfill(4))))
+        plt.close(fig1)
+
+        # filtering only angles in a selected area
+        hist_mask=hist_mask.astype(bool)
+        angles_mask = [a for a,p in zip(angs_bin,points_bin) if hist_mask[np.round(p[1]).astype(int),np.round(p[0]).astype(int)]]
+
+        fig2 = plt.figure(figsize=(10, 7.96511), frameon=False)
+        plt.hist(angles_mask,density=True,color="C1",edgecolor='black')
+        plt.gca().spines["right"].set_visible(False)
+        plt.gca().spines["top"].set_visible(False)
+        plt.gca().set_xticks(np.linspace(0, np.pi / 2, 8))
+        plt.gca().set_xticklabels([r"$0$"] + [r"$\frac{%s\pi}{%s}$" % s for s in
+                                           [("", "16"), ("", "8"), ("3", "16"), ("", "4"), ("5", "16"), ("3", "8"),
+                                            ("", "2")]], fontsize=20)
+        plt.yticks(fontsize=20)
+        plt.ylabel("density",fontsize=20)
+        plt.ylim(0,1)
+        plt.xlabel("angle to spheroid-spheroid axis",fontsize=20)
+        plt.text(0.2, 1,  "time: %s to %s"%(t1,t2), transform=plt.gca().transAxes, fontsize=20)
+        fig2.savefig(os.path.join(folder, "hist_frame%s.png" % (str(i).zfill(4))))
+        plt.close(fig2)
+
+    plt.ion()
+
