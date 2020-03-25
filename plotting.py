@@ -43,7 +43,7 @@ def plot_angles_database(db, start_frame, end_frame, orient_line, folder = "angl
     os.system(command)
 
 
-def vizualize_angles(angles, points, vecs1, vecs2, arrows=True, image=None, normalize=True, size_factor=10, text=True, sample_factor=10,cbar_max_angle=None):
+def vizualize_angles(angles, points, vecs1, vecs2, arrows=True, image=None, normalize=True, size_factor=10, text=True, sample_factor=10,cbar_max_angle=None, angle_in_degree=True):
     fig=plt.figure()
     if isinstance(image, np.ndarray):
         plt.imshow(image,cmap="Greys")
@@ -67,7 +67,11 @@ def vizualize_angles(angles, points, vecs1, vecs2, arrows=True, image=None, norm
     norm = matplotlib.colors.Normalize(vmin=0, vmax=vmax)
     sm = plt.cm.ScalarMappable(cmap=matplotlib.cm.get_cmap("Greens"), norm=norm)
     cbar=plt.colorbar(sm)
-    cbar.ax.set_ylabel("angle [rad]",fontsize=20)
+    if angle_in_degree:
+        cbar.ax.set_yticklabels([str(np.round(360*i/(2*np.pi))) for i in cbar.ax.get_yticks()])
+        cbar.ax.set_ylabel("angle [°]",fontsize=20)
+    else:
+        cbar.ax.set_ylabel("angle [rad]",fontsize=20)
     return fig
 
 def display_spatial_angle_distribution(points,angles,bins=None,fig_paras={},imshow_paras={"cmap":"Greens"},bg="Greys"):
