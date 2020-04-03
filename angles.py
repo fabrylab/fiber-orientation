@@ -1,5 +1,36 @@
 import numpy as np
 import copy
+from tqdm import tqdm
+
+
+def generate_rotation_matrix(angle):
+    return np.array([[np.cos(angle),-np.sin(angle)],[np.sin(angle),np.cos(angle)]])
+
+def rotate_track(ps, angle):
+    com=np.nanmean(ps,axis=0)
+    # centralize points
+    pc = ps-com
+    # apply rotation
+    pc_rot = np.matmul(pc, generate_rotation_matrix(angle).T)
+    p = pc_rot + com # undo centralization
+    return p
+
+
+
+def get_mean_anlge_over_time(frames, max_frame, binsize_time, step_size, angs, lengths=None, weighting="nw"):
+
+    if weighting == "nw":
+        [a] = binning_by_frame(frames, max_frame, binsize_time, step_size, angs)
+        ma = [np.mean(angs) for angs in a.values()]
+    if weighting == "lw":
+        # with linear weighting by movement step length
+        a, l = binning_by_frame(frames, max_frame, binsize_time, step_size, angs, lengths)
+        ma = [np.mean(angs * ls) for angs, ls in zip(a.values(), l.values())]
+        ma = ma / np.mean(lengths)
+
+    return ma
+
+
 def radial_angle_distribution(points,center,angles,bins):
     rs = np.linalg.norm(points - center, axis=1)
     h1, bins1 = np.histogram(rs, bins=bins, weights=angles)
@@ -41,3 +72,35 @@ def calculate_angle(vec1, vec2, axis=0):
     angle = (angles1-angles2) % (2 * np.pi)  # not sure how this works exactely
     # taking the modulo should be the same as +2pi if angle <0 which should  be correct......
     return angle
+
+
+def binning_by_frame(frame_list, max_frame, binsize_time, step_size, *args):
+    ## returns dictinoary of binned values (binned by frames list) for all lists in args
+    dict_list = [{} for i in range(len(args))]
+    for i, s in enumerate(range(0, max_frame - binsize_time, step_size)):
+         time_mask = np.logical_and(frame_list >= s, frame_list < (s + binsize_time))
+         for i, a in enumerate(args):
+             dict_list[i][(s,s + binsize_time)] = a[time_mask]
+    return dict_list
+
+
+def extract_angles_area(hist_mask, points_b, *args, dtype="array"):
+
+    if dtype==dict:
+        hist_mask = hist_mask.astype(bool)
+        points_select = {}
+        others = [{} for i in range(len(args))]
+        for f_range in tqdm(points_b.keys()):
+            points_bin = points_b[f_range]
+            inside_select = hist_mask[np.round(points_bin[:, 1]).astype(int), np.round(points_bin[:, 0]).astype(int)]
+            for i, ar in enumerate(args):
+                others[i][f_range] = ar[f_range][inside_select]
+    if dtype=="array":
+        hist_mask = hist_mask.astype(bool)
+        inside_select = hist_mask[np.round(points_b[:, 1]).astype(int), np.round(points_b[:, 0]).astype(int)]
+        points_select = points_b[inside_select]
+        others = []
+        for i, ar in enumerate(args):
+            others.append(ar[inside_select])
+    return points_select, others
+

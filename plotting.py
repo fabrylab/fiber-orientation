@@ -42,21 +42,27 @@ def plot_angles_database(db, start_frame, end_frame, orient_line, folder = "angl
                                  os.path.join(folder, "frame%04d.png"), os.path.join(folder, "angles.mp4"))
     os.system(command)
 
-def plot_mean_angles(as1,as2=None,y_label="mean angles",title="",la1="angles near axis",la2="angles far from axis"):
+def plot_mean_angles(angles,vmin=None,vmax=None,y_label="mean angles",title="",labels=["angles near axis","angles far from axis"], angle_in_degree = True):
+    # angles must be list of arrays or list of lists and labels must be at least as long as anlges.
 
-def vizualize_angles(angles, points, vecs1, vecs2, arrows=True, image=None, normalize=True, size_factor=10, text=True, sample_factor=10,cbar_max_angle=None, angle_in_degree=True):
     fig=plt.figure()
-    plt.plot(as1, color="C0", label=la1)
-    if isinstance(as2, (np.ndarray, list)):
-        plt.plot(as2, color="C1", label=la2)
-    plt.hlines(np.pi / 4, 0, len(as1))
+    for i,(a,l) in enumerate(zip(angles,labels)):
+        plt.plot(a, color="C" + str(i), label=l)
+    plt.hlines(np.pi / 4, 0, len(a)) # mean angle of random motion
     plt.xlabel("time steps")
     plt.ylabel(y_label)
-    plt.legend()
+    plt.legend(loc="upper right")
     plt.title(title)
+    vmin = np.min(angles)-0.2*np.abs(np.min(angles)) if not isinstance(vmin,(int,float)) else vmin
+    vmax = np.min(angles)+0.2*np.abs(np.min(angles)) if not isinstance(vmax,(int,float)) else vmax
+    plt.ylim(vmin, vmax)
+    if angle_in_degree:
+        plt.gca().set_yticklabels([str(np.round(360*i/(2*np.pi)).astype(int)) for i in plt.gca().get_yticks()])
+        plt.gca().set_ylabel("angle [°]",fontsize=20)
     return fig
 
-def vizualize_angles(angles, points, vecs1, vecs2, arrows=True, image=None, normalize=True, size_factor=10, text=True, sample_factor=10,cbar_max_angle=None):
+def vizualize_angles(angles, points, vecs1, vecs2, arrows=True, image=None, normalize=True, size_factor=10, text=True,
+                     sample_factor=10, cbar_max_angle=None,angle_in_degree=True):
     fig=plt.figure()
     if isinstance(image, np.ndarray):
         plt.imshow(image,cmap="Greys")
@@ -80,8 +86,9 @@ def vizualize_angles(angles, points, vecs1, vecs2, arrows=True, image=None, norm
     norm = matplotlib.colors.Normalize(vmin=0, vmax=vmax)
     sm = plt.cm.ScalarMappable(cmap=matplotlib.cm.get_cmap("Greens"), norm=norm)
     cbar=plt.colorbar(sm)
+    cbar.set_ticks(np.round(np.linspace(0,vmax,4),2))
     if angle_in_degree:
-        cbar.ax.set_yticklabels([str(np.round(360*i/(2*np.pi))) for i in cbar.ax.get_yticks()])
+        cbar.ax.set_yticklabels([str(np.round(360*i/(2*np.pi)).astype(int)) for i in cbar.ax.get_yticks()])
         cbar.ax.set_ylabel("angle [°]",fontsize=20)
     else:
         cbar.ax.set_ylabel("angle [rad]",fontsize=20)

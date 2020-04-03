@@ -44,7 +44,7 @@ ta_rand = calculate_angle(l_vecs_rand,c_vecs_rand,axis=1)
 ta_adjusted_rand = project_angle(ta_rand)
 fig_angles2=vizualize_angles(ta_adjusted_rand, l_points_rand, l_vecs_rand,c_vecs_rand ,image=im, sample_factor=4, size_factor=30, text=False, arrows=True, angle_in_degree=True)
 #diplay_radial_angle_distribution(l_points_rand, center_rand, ta_adjusted_rand, 100)
-fig_angles_dist2=display_spatial_angle_distribution(l_points_rand, ta_adjusted_rand, bins=None)
+fig_angles_dist2 = display_spatial_angle_distribution(l_points_rand, ta_adjusted_rand, bins=None)
 plt.show()
 
 
@@ -52,7 +52,7 @@ fig_rad = diplay_radial_angle_distribution([l_points,l_points_rand],[center,cent
                                  [ta_adjusted,ta_adjusted_rand],100,plt_labels=["spherod","random fibres"])
 # saving
 fig_angles1.savefig("evaluation_polar_coordinates/angles_spheroid.png")
-fig_angles_dist1.savefig("evaluation_polar_coordinates/angle_dist_spheroid.png")
+fig_angles_dist1.savefig("evaluation_polar_coordinates/angle_distribution_spheroid.png")
 fig_angles2.savefig("evaluation_polar_coordinates/angles_random.png")
-fig_angles_dist2.savefig("evaluation_polar_coordinates/angle_dist_spheroid.png")
+fig_angles_dist2.savefig("evaluation_polar_coordinates/angle_distribution_random.png")
 fig_rad.savefig("evaluation_polar_coordinates/radial_angle_dist.png")

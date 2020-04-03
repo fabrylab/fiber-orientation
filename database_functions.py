@@ -6,7 +6,7 @@ import os
 from collections import defaultdict
 import sys
 sys.path.append("/home/user/Software/fiber-orientation")
-
+import traceback
 
 
 def createFolder(directory):
@@ -25,7 +25,8 @@ class OpenDB:
     # context manager for database file. if db is a path a new file handle is opened
     # this handle is later closed (!). if db is already clickpoints.DataFile object,
     # the handle is not closed
-    def __init__(self,db, method="r"):
+    def __init__(self,db, method="r", raise_Error=True):
+        self.raise_Error = raise_Error
         if isinstance(db, clickpoints.DataFile):
             self.file = db
             self.db_obj=True
@@ -36,33 +37,69 @@ class OpenDB:
     def __enter__(self):
         return self.file
 
-    def __exit__(self, type, value, traceback):
+    def __exit__(self, exc_type, exc_value, trace):
+
         if not self.db_obj:
             self.file.db.close()
+        if self.raise_Error:
+            return False
+        else:
+            traceback.print_tb(trace)
+            return True
 
 
-def read_tracks_list_by_frame(db, start_frame=0, end_frame=None):
+
+def remove_empty_entries(dicts, dtype="list"):
+     if dtype=="list":
+         for d in dicts:
+             empty_key = [key for key, value in d.items() if len(value) == 0]
+             for ek in empty_key:
+                 d.pop(ek)
+
+def make_iterable(value):
+    if not hasattr(value, '__iter__') or isinstance(value,str):
+        return [value]
+    else:
+        return value
+
+
+
+
+def read_tracks_list_by_frame(db, window_size=1, start_frame=0, end_frame=None, return_dict=False):
 
     with OpenDB(db) as db_l:
         if not isinstance(end_frame,int):
             end_frame = db_l.getImageCount()
         tracks = db_l.getTracksNanPadded(start_frame=start_frame, end_frame=end_frame)
          # calcualting vectors
-        n_vecs = tracks.shape[0] * (tracks.shape[1] - 1)
-        vecs = np.reshape(tracks[:, 1:, :] - tracks[:, :-1, :], (n_vecs, tracks.shape[2]))
-        points = np.reshape(tracks[:, :-1, :], (n_vecs, tracks.shape[2]))
-        frames = np.tile(np.arange(start_frame, end_frame-1, dtype=int), tracks.shape[0])
-         # filtering all frames without vectors
-        nan_mask = ~np.isnan(vecs)
-    return vecs[nan_mask[:,0]], points[nan_mask[:,0]], frames[nan_mask[:,0]]
+        n_vecs = tracks.shape[0] * (tracks.shape[1] - window_size)
+        vecs = tracks[:, window_size:, :] - tracks[:, :-window_size, :]
+        points = tracks[:, :-window_size, :]
+        if return_dict:
+            nan_dict = {i: ~np.isnan(v) for i, v in enumerate(vecs)} # id of each track: vectors
+            vecs_ret = {i: v[nan_dict[i][:, 0]] for i, v in enumerate(vecs)}
+            points_ret = {i: p[nan_dict[i][:, 0]] for i, p in enumerate(points)}
+            frames_ret = {i: np.arange(start_frame, end_frame-window_size, dtype=int)[nan_dict[i][:, 0]] for i,v in enumerate(vecs)}
+            # cleaning up empty ids:
+            remove_empty_entries([vecs_ret, points_ret, frames_ret], dtype="list")
+        else:
+            vecs = np.reshape(vecs, (n_vecs, tracks.shape[2]))
+            points = np.reshape(points, (n_vecs, tracks.shape[2]))
+            frames = np.tile(np.arange(start_frame, end_frame - window_size, dtype=int), tracks.shape[0])
+            # filtering all frames without vectors
+            nan_mask = ~np.isnan(vecs)
+            vecs_ret = vecs[nan_mask[:, 0]]
+            points_ret = points[nan_mask[:, 0]]
+            frames_ret = frames[nan_mask[:, 0]]
+    return vecs_ret, points_ret, frames_ret
 
-def make_frame_dict(frames,*args):
-    dict_list=[defaultdict(list) for i in range(args)]
-    for f,[ar] in zip(frames,*args):
-        for i,a in ar:
-            dict_list[i].append(ar)
-    return dict_list
+def get_orientation_line(db):
 
+    with OpenDB(db) as db_l:
+        e_points = [(m.x, m.y) for m in db_l.getMarkers(type="elips")]
+        straight_line = np.array(e_points[0])-np.array(e_points[3])
+
+    return straight_line
 
 def read_tracks_list_by_id(db, min_id=0, max_id=np.inf):
     #db path or db object
