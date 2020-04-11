@@ -272,6 +272,77 @@ def angle_to_line_analysis(db_path, hist_mask_path, output_folder, output_file="
     np.savetxt(out_file, np.array(arr_save), delimiter=",", fmt="%.3f", header=",".join(headers))
 
 
+
+def angle_distance_distribution(db_path, output_folder, max_frame=None,  ws_angles=1, window_length=501, ymin=0,ymax=90, px_scale = None):
+    '''
+    Calculates the distribution of the mean movement angles of cells towards the spheroid center over distance. The angle is projected to a range
+    between 0° to 90°. A cell moving away and a cell moving towards the spheroid center both have an angle of 0 degrees.
+    Your database needs tracks of moving cells and markers of type "center", that mark the center of spheroids. The distance angle distribution is
+    created by smoothing the data with an savitzky golay filter with defined window_length. Plot and data are stored in outptfolder.
+    
+    :param db_path: full path to the database
+    :param output_folder: output folder, is created on demand 
+    :param max_frame:  maximal frame up to which tracks are analyzed. None if you want all tracks.
+    :param ws_angles:  angle of cell movement is calculated using the i th and (i+ws_angles) th position (in frames)
+    of the cell
+    :param window_legth: Window size in pixel which is used for the sliding window of the savitzky golay filter
+    to create a smooth distribution - must be an odd number
+    :param ymin: minimal angle to show in plot (degree)
+    :param ymax: maximal angle to show in plot (degree)
+    :param px_scale: Used to visualize distance in um instead pixels. Default is None and displays px values
+    :return:
+    '''
+
+    #reading center positions, one image of the spheroids and identifying maximal frame if max_frame==None
+    im = None
+    createFolder(output_folder)
+    with OpenDB(db_path) as db:
+        centers = np.array([(m.x, m.y) for m in db.getMarkers(type="center")])
+        with suppress(FileNotFoundError): im = db.getImages()[0].data
+        max_frame = max_frame if isinstance(max_frame, int) else db.getImageCount()
+
+    # reading angles, movement vectors, frames and points adn randomizing cell tracks
+    point_dict, vec_dict, frames_dict, angs_dict, dist_vectors = angles_to_centers(db_path, centers,
+                                                                    window_size=ws_angles, max_frame=max_frame)
+    point_array =  np.array(list(point_dict.values())[0])
+    distances = np.linalg.norm(point_array[:,None] - centers[None,:], axis=2) 
+    angles =  np.array(list(angs_dict.values())[0])
+
+    # sort depending on distance
+    distances, angles = zip(*sorted( zip( distances, angles)  ))
+    distances = np.array(distances)
+    angles = np.array(angles)
+    
+    # use savitzky golay filter instead of simple sliding window
+    from scipy import signal
+    angle_f = signal.savgol_filter(angles, window_length=window_length, polyorder=1,   mode='mirror' )
+
+    # save results
+    np.save(os.path.join(output_folder, 'distances_px.npy'), distances)
+    np.save(os.path.join(output_folder, 'mean_angles_rad.npy'), angle_f)
+    
+    
+    # plot results
+    plt.figure()
+    plt.grid('True')
+    if px_scale is None:
+        plt.plot(distances,angle_f*(360/(2*np.pi)),'--', c='orange', label='Tracks')
+        plt.plot(distances,[45]*len(distances),'--', c='k', label='Random')
+        plt.xlabel('Distance')
+    else:
+        plt.plot(distances*px_scale,angle_f*(360/(2*np.pi)),'--', c='orange', label='Tracks')
+        plt.plot(distances*px_scale, [45]*len(distances),'--', c='k', label='Random')
+        plt.xlabel('Distance (µm)')
+    plt.ylabel('Mean Angle to spheroid (°)')
+    plt.ylim(ymin,ymax)
+    plt.legend()
+    plt.savefig(os.path.join(output_folder, 'angle_distance.png'), dpi=350 )
+    plt.close()
+ 
+    return (distances, angles)
+
+
+
 if __name__=="__main__":
     #plt.ioff()
     folder = "/home/user/Software/fiber-orientation/spheroid_spheroid_axis"
@@ -292,5 +363,3 @@ if __name__=="__main__":
                            ws_angles=1, ws_mean=30, bs_mean=2, weighting="nw")
     angle_to_line_analysis(db_path, hist_mask_path, output_folder1, output_file="lw_mean_angles.txt", max_frame=max_frame,
                            ws_angles=1, ws_mean=30, bs_mean=2, weighting="lw")
-
-
