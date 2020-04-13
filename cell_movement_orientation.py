@@ -285,7 +285,7 @@ def angle_distance_distribution(db_path, output_folder, max_frame=None,  ws_angl
     :param max_frame:  maximal frame up to which tracks are analyzed. None if you want all tracks.
     :param ws_angles:  angle of cell movement is calculated using the i th and (i+ws_angles) th position (in frames)
     of the cell
-    :param window_legth: Window size in pixel which is used for the sliding window of the savitzky golay filter
+    :param window_legth: Window size in data points which is used for the sliding window of the savitzky golay filter
     to create a smooth distribution - must be an odd number
     :param ymin: minimal angle to show in plot (degree)
     :param ymax: maximal angle to show in plot (degree)
