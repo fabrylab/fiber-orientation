@@ -42,7 +42,7 @@ def plot_angles_database(db, start_frame, end_frame, orient_line, folder = "angl
                                  os.path.join(folder, "frame%04d.png"), os.path.join(folder, "angles.mp4"))
     os.system(command)
 
-def plot_mean_angles(angles,vmin=None,vmax=None,y_label="mean angles",title="",labels=["angles near axis","angles far from axis"], angle_in_degree = True):
+def plot_mean_angles(angles, vmin=None,vmax=None,y_label="mean angles",title="",labels=["angles near axis","angles far from axis"], angle_in_degree = True):
     # angles must be list of arrays or list of lists and labels must be at least as long as anlges.
 
     fig=plt.figure()
@@ -83,26 +83,35 @@ def vizualize_angles(angles, points, vecs1, vecs2, arrows=True, image=None, norm
             if text:
                 plt.text(p[0], p[1], str(i) + "\n" + str(np.round(angles[i],2)))
     vmax = cbar_max_angle if isinstance(cbar_max_angle,(int,float)) else np.max(angles)
-    norm = matplotlib.colors.Normalize(vmin=0, vmax=vmax)
-    sm = plt.cm.ScalarMappable(cmap=matplotlib.cm.get_cmap("Greens"), norm=norm)
-    cbar=plt.colorbar(sm)
-    cbar.set_ticks(np.round(np.linspace(0,vmax,4),2))
-    if angle_in_degree:
-        cbar.ax.set_yticklabels([str(np.round(360*i/(2*np.pi)).astype(int)) for i in cbar.ax.get_yticks()])
-        cbar.ax.set_ylabel("angle [°]",fontsize=20)
-    else:
-        cbar.ax.set_ylabel("angle [rad]",fontsize=20)
+    add_colorbar_angles(0, vmax, angle_in_degree=True)
     return fig
 
-def display_spatial_angle_distribution(points,angles,bins=None,fig_paras={},imshow_paras={"cmap":"Greens"},bg="Greys"):
-    hist = spatial_angle_distribution(points,angles,bins=bins)
-    fig=plt.figure(**fig_paras)
-    if isinstance(bg,(str,tuple,list)): # plotting a background( is there no better way??
+def add_colorbar_angles(vmin,vmax,angle_in_degree=True):
+
+    norm = matplotlib.colors.Normalize(vmin=vmin, vmax=vmax)
+    sm = plt.cm.ScalarMappable(cmap=matplotlib.cm.get_cmap("Greens"), norm=norm)
+    cbar = plt.colorbar(sm)
+    cbar.set_ticks(np.round(np.linspace(vmin, vmax * 0.99, 4), 2))
+    if angle_in_degree:
+        cbar.ax.set_yticklabels([str(np.round(360 * i / (2 * np.pi)).astype(int)) for i in cbar.ax.get_yticks()])
+        cbar.ax.set_ylabel("angle [°]", fontsize=20)
+    else:
+        cbar.ax.set_ylabel("angle [rad]", fontsize=20)
+
+def display_spatial_angle_distribution(points,angles, bins=None,fig_paras={},imshow_paras={"cmap":"Greens"},bg="Greys",diff_to_random_angle=False, vmin=None, vmax=None):
+    hist = spatial_angle_distribution(points, angles, bins=bins)
+    fig = plt.figure(**fig_paras)
+    if isinstance(bg,(str,tuple,list)): # plotting a background (is there no better way??)
         plt.imshow(np.zeros(hist.shape)+1,vmin=0,vmax=2,cmap=bg)
-    plt.imshow(hist,**imshow_paras)
-    cbar = plt.colorbar()
-    cbar.ax.tick_params(labelsize=20)
-    cbar.ax.set_ylabel("angle [rad]",fontsize=20)
+    if diff_to_random_angle:
+        plt.imshow(hist-(np.pi/4), **imshow_paras)
+        add_colorbar_angles(vmin, vmax, angle_in_degree=True)
+    else:
+        plt.imshow(hist, **imshow_paras)
+        vmin = np.min(hist) if not isinstance(vmin,(float,int)) else vmin
+        vmax = np.max(hist) if not isinstance(vmin,(float,int)) else vmax
+        add_colorbar_angles(vmin, vmax, angle_in_degree=True)
+
     return fig
 
 def diplay_radial_angle_distribution(points, center, angles, bins, plt_labels=["",""]):

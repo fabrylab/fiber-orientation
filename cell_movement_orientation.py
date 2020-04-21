@@ -7,103 +7,48 @@ import sys
 import re
 import matplotlib.pyplot as plt
 sys.path.append("/home/user/Software/fiber-orientation")
-from plotting import plot_binned_angle_fileds, vizualize_angles, plot_mean_angles
+from plotting import plot_binned_angle_fileds, vizualize_angles, plot_mean_angles, display_spatial_angle_distribution
 from database_functions import *
 from angles import *
 from contextlib import suppress
 from utilities import *
 
 
-folder = "/home/user/Software/fiber-orientation/spheroid_spheroid_axis"
-db_path = os.path.join(folder, "db.cdb")
-hist_mask = os.path.join(folder,"hist_mask.npy")
-out_path = os.path.join(folder, "out")
-
-
-def read_tracks_randomized(db, window_size=1, start_frame=0, end_frame=None):
-
-    with OpenDB(db) as db_l:
-        if not isinstance(end_frame,int):
-            end_frame = db_l.getImageCount()
-        tracks = db_l.getTracksNanPadded(start_frame=start_frame, end_frame=end_frame)
-         # calcualting vectors
-
-        vecs_ret = {}
-        points_ret = {}
-        frames_ret = {}
-        for i, v in enumerate(tracks):
-            ps_rot = rotate_track(v, np.random.uniform(0,np.pi*2))
-            vecs = ps_rot[window_size:]-ps_rot[:-window_size]
-            nan_filter = ~np.isnan(vecs[:, 0])
-            vecs_ret[i] = vecs[nan_filter]
-            points_ret[i] = ps_rot[:-window_size][nan_filter]
-            frames_ret[i] = np.arange(start_frame, end_frame-window_size, dtype=int)[nan_filter]
-        remove_empty_entries([vecs_ret, points_ret, frames_ret], dtype="list")
-    return  vecs_ret, points_ret, frames_ret
-
-
-
-def angles_to_straight_line(db, straight_line, window_size=1, max_frame=None):
-
-    vecs, points, frames = read_tracks_list_by_frame(db, window_size=window_size, end_frame=max_frame,  return_dict=False)
-    angs = calculate_angle(vecs, straight_line, axis=1)
+def angles_to_straight_line(straight_line, vecs, points, frames):
+    vecs_ar, points_ar, frames_ar = np.vstack(list(vecs.values())), np.vstack(list(points.values())), np.hstack(
+        list(frames.values()))
+    angs = calculate_angle(vecs_ar, straight_line, axis=1)
     angs = project_angle(angs)
-    return vecs, points, frames, angs
+    return vecs_ar, points_ar, frames_ar, angs
 
 
 
-def angles_to_centers(db, centers, window_size=1, max_frame=None):
-
-    vecs, points, frames = read_tracks_list_by_frame(db, window_size=window_size, end_frame=max_frame, return_dict=False)
+def  angles_to_centers(centers, vecs, points, frames):
+    # converting to one big array
+    vecs_ar, points_ar, frames_ar = np.vstack(list(vecs.values())), np.vstack(list(points.values())), np.hstack(list(frames.values()))
     # associate to point to closest center
-    distances = np.linalg.norm(points[:,None] - centers[None,:], axis=2) #axis0->points,axis1->centers
+    distances = np.linalg.norm(points_ar[:,None] - centers[None,:], axis=2) #axis0->points,axis1->centers
     mins = np.argmin(distances,axis=1)
     n = range(len(centers))
-    point_dict = {i:points[mins==i] for i in n}
-    vec_dict = {i:vecs[mins==i] for i in n}
-    frames_dict = {i:frames[mins==i] for i in n}
+    point_dict = {i:points_ar[mins==i] for i in n}
+    vec_dict = {i:vecs_ar[mins==i] for i in n}
+    frames_dict = {i:frames_ar[mins==i] for i in n}
     dist_vectors = {i: point_dict[i] - centers[i] for i in n}
 
     angs_dict = {i:project_angle(calculate_angle(vec_dict[i], dist_vectors[i], axis=1)) for i in range(len(centers))}
 
     return point_dict, vec_dict, frames_dict, angs_dict, dist_vectors
-
-
-
-
-def angles_to_centers_randomized(db, centers, window_size=1, max_frame=None):
-
-    vecs, points, frames =  read_tracks_randomized(db, window_size=window_size, start_frame=0, end_frame=max_frame)
-
-    points, vecs, frames = flatten_dict(points, vecs, frames)
-
-    # associate to point to closest center
-    distances = np.linalg.norm(points[:,None] - centers[None,:], axis=2) #axis0->points,axis1->centers
-    mins = np.argmin(distances,axis=1)
-    n = range(len(centers))
-    point_dict = {i:points[mins==i] for i in n}
-    vec_dict = {i:vecs[mins==i] for i in n}
-    frames_dict = {i:frames[mins==i] for i in n}
-    dist_vectors = {i: point_dict[i] - centers[i] for i in n}
-
-    angs_dict = {i:project_angle(calculate_angle(vec_dict[i], dist_vectors[i], axis=1)) for i in range(len(centers))}
-
-    return point_dict, vec_dict, frames_dict, angs_dict, dist_vectors
-
-
-
 
 
 
 def read_tracks_to_binned_dict(db, binsize_time, step_size, max_frame=None):
-    straight_line = get_orientation_line(db_path)
+    straight_line = get_orientation_line(db)
     vecs, points, frames, angs = angles_to_straight_line(db, straight_line, max_frame=max_frame)
     max_frame = np.max(frames) if not isinstance(max_frame, (int, float)) else max_frame
     # might be to memory intensive like this
     vecs_b, points_b, angs_b = binning_by_frame(frames, max_frame, binsize_time, step_size, vecs, points, angs)
 
     return vecs_b, points_b, angs_b
-
 
 
 
@@ -116,7 +61,7 @@ def make_spheroid_spheroid_orientation_vids(db_path,hist_mask,out_path):
 
     max_frame = db.getImageCount()  # that would be all frames
 
-    vecs, points, frames = read_tracks_list_by_frame(db, end_frame=max_frame)
+    vecs, points, frames = read_tracks_list_by_frame(db, end_frame=max_frame, track_types=None)
     db.db.close()
     hist_mask = np.load(hist_mask)
     new_folder = createFolder(out_path)
@@ -162,26 +107,33 @@ def angle_to_center_analysis(db_path, output_folder, output_file, max_frame=None
     '''
 
     #reading center positions, one image of the spheroids and identifying maximal frame if max_frame==None
-    im = None
     createFolder(output_folder)
     out_file = os.path.join(output_folder, output_file)
     with OpenDB(db_path) as db:
         centers = np.array([(m.x, m.y) for m in db.getMarkers(type="center")])
-        with suppress(FileNotFoundError): im = db.getImages()[0].data
+        with suppress(FileNotFoundError):
+            im = db.getImages()[0].data
+            im_shape=im.shape
         max_frame = max_frame if isinstance(max_frame, int) else db.getImageCount()
 
     # reading angles, movement vectors, frames and points adn randomizing cell tracks
-    point_dict, vec_dict, frames_dict, angs_dict, dist_vectors = angles_to_centers(db_path, centers,
-                                                                    window_size=ws_angles, max_frame=max_frame)
-    lengths_dict = {key:np.linalg.norm(v, axis=1) for key,v in vec_dict.items()}   # calculating the length
-    point_dict_rand, vec_dict_rand, frames_dict_rand, angs_dict_rand, dist_vectors_rand = angles_to_centers_randomized(db_path,
-                                                centers, window_size=ws_angles, max_frame=max_frame)
+    vecs, points, frames = read_tracks_list_by_frame(db, window_size=ws_angles, end_frame=max_frame,
+                                                     return_dict=True, track_types=None) # reading vetctors and points as arrays
+
+    # splitting into dictionary according to the closest spheroid center
+    point_dict, vec_dict, frames_dict, angs_dict, dist_vectors = angles_to_centers(centers, vecs, points, frames)
+    lengths_dict = {key: np.linalg.norm(v, axis=1) for key,v in vec_dict.items()}   # calculating the length
+
+    # randomizing orientation and splitting into dictionary according to the closest spheroid center
+    vecs_rot, points_rot, frames_rot = randomize_tracks(vecs, points, frames, im_shape)
+    point_dict_rand, vec_dict_rand, frames_dict_rand, angs_dict_rand, dist_vectors_rand = angles_to_centers(centers, vecs_rot, points_rot, frames_rot)
     lengths_dict_rand = {key: np.linalg.norm(v, axis=1) for key, v in vec_dict_rand.items()}  # calculating the length
+
     point, vec, frames, angs, dists = flatten_dict(point_dict, vec_dict, frames_dict, angs_dict, dist_vectors)
     point_rand, vec_rand, frames_rand, angs_rand, dists_rand = flatten_dict(point_dict_rand, vec_dict_rand, frames_dict_rand,
                                                                             angs_dict_rand, dist_vectors_rand)
     # vizualizing angles
-    fig_angel_viz=vizualize_angles(angs, point, vec, dists, arrows=True, image=im, normalize=True, size_factor=50,
+    fig_angel_viz = vizualize_angles(angs, point, vec, dists, arrows=True, image=im, normalize=True, size_factor=50,
                      text=False, sample_factor=int(np.ceil(0.2*max_frame)))
     fig_angel_viz.savefig(os.path.join(output_folder, "anlges_vizualization.png"))
 
@@ -212,6 +164,24 @@ def angle_to_center_analysis(db_path, output_folder, output_file, max_frame=None
     np.savetxt(out_file, np.array(arr_save), delimiter=",", fmt="%.3f", header=",".join(headers))
 
 
+    # 2d maps of angles
+    bins = (int(10*im_shape[1]*2/(im_shape[0]+im_shape[1])),int(10*im_shape[0]*2/(im_shape[0]+im_shape[1])))
+    fig_spatial = display_spatial_angle_distribution(point, angs, bins=bins, fig_paras={}, imshow_paras={"cmap": "Greens"}, bg="Greys", vmin=29*2*np.pi/360,vmax=55*2*np.pi/360)
+    for c in centers:
+        fig_spatial.get_axes()[0].plot(c[0]*bins[1]/im_shape[0],c[1]*bins[0]/im_shape[1],"+", color="red")
+    fig_spatial_random = display_spatial_angle_distribution(point_rand, angs_rand, bins=bins, fig_paras={}, imshow_paras={"cmap": "Greens"}, bg="Greys", vmin=29*2*np.pi/360,vmax=55*2*np.pi/360)
+    for c in centers:
+        fig_spatial_random.get_axes()[0].plot(c[0] * bins[1] / im_shape[0], c[1] * bins[0] / im_shape[1], "+", color="red")
+    fig_spatial.savefig(os.path.join(output_folder,"spatial_distribution.png"))
+    fig_spatial_random.savefig(os.path.join(output_folder,"spatial_distribution_random.png"))
+
+    #fig_spatial = display_spatial_angle_distribution(point, angs, bins=(5,5), fig_paras={}, imshow_paras={"cmap": "Greens"}, bg="Greys", diff_to_random_angle=True)
+    #fig_spatial_random = display_spatial_angle_distribution(point_rand, angs_rand, bins=(10,10), fig_paras={}, imshow_paras={"cmap": "Greens"}, bg="Greys", diff_to_random_angle=True)
+    #fig_spatial.savefig(os.path.join(output_folder,"diff_spatial_distribution.png"))
+    #fig_spatial_random.savefig(os.path.join(output_folder,"diff_spatial_distribution_random.png"))
+    print(len(angs))
+    print(np.nanmean(angs_rand))
+    print(np.nanmean(angs))
 
 def angle_to_line_analysis(db_path, hist_mask_path, output_folder, output_file="mean_anlges.txt", max_frame=None, ws_angles=1, ws_mean=30, bs_mean=2,
                            weighting = "nw"):
@@ -236,7 +206,6 @@ def angle_to_line_analysis(db_path, hist_mask_path, output_folder, output_file="
     :return:
     '''
 
-    frames_out, ma_in_nw, ma_out_nw, ma_in_lw, ma_out_lw, im = None, None, None, None, None, None
     createFolder(output_folder)
     out_file = os.path.join(output_folder,output_file)
     with OpenDB(db_path) as db:
@@ -246,8 +215,13 @@ def angle_to_line_analysis(db_path, hist_mask_path, output_folder, output_file="
         max_frame = max_frame if isinstance(max_frame, int) else db.getImageCount()
 
     hist_mask = np.load(hist_mask_path).astype(bool)
+
+    vecs, points, frames = read_tracks_list_by_frame(db, window_size=ws_angles, end_frame=max_frame,
+                                                     return_dict=True,
+                                                     track_types=None)  # reading vetctors and points as arrays
+
     # reading tracks and calculating angles
-    vecs, points, frames, angs = angles_to_straight_line(db_path, straight_line, window_size=ws_angles, max_frame=max_frame)
+    vecs, points, frames, angs = angles_to_straight_line(straight_line, vecs, points, frames)
     lengths = np.linalg.norm(vecs, axis=1)  # calculating the length
 
     ol_vecs = np.repeat(np.expand_dims(straight_line, axis=0), len(vecs), axis=0)
@@ -348,18 +322,18 @@ if __name__=="__main__":
     folder = "/home/user/Software/fiber-orientation/spheroid_spheroid_axis"
     db_path = os.path.join(folder, "db.cdb")
     hist_mask_path = os.path.join(folder, "hist_mask.npy")
-    output_folder1 = os.path.join(folder, "out1")
-    output_folder2 = os.path.join(folder, "out2")
+    output_folder1 = os.path.join(folder, "test1")
+    output_folder2 = os.path.join(folder, "test2")
 
-    max_frame=200
+    max_frame = None
     ### could use upt to 2 GB Memory and 3 minutes per database for a single analysis type
 
     angle_to_center_analysis(db_path, output_folder2, output_file="nw_mean_angles.txt", max_frame=max_frame,
                              ws_angles=1, ws_mean=30, bs_mean=2, weighting="nw")
-    angle_to_center_analysis(db_path, output_folder2, output_file="lw_mean_angles.txt", max_frame=max_frame,
-                             ws_angles=1, ws_mean=30, bs_mean=2, weighting="lw")
+    #angle_to_center_analysis(db_path, output_folder2, output_file="lw_mean_angles.txt", max_frame=max_frame,
+    #                         ws_angles=1, ws_mean=30, bs_mean=2, weighting="lw")
 
-    angle_to_line_analysis(db_path, hist_mask_path, output_folder1, output_file="nw_mean_angles.txt", max_frame=max_frame,
-                           ws_angles=1, ws_mean=30, bs_mean=2, weighting="nw")
-    angle_to_line_analysis(db_path, hist_mask_path, output_folder1, output_file="lw_mean_angles.txt", max_frame=max_frame,
-                           ws_angles=1, ws_mean=30, bs_mean=2, weighting="lw")
+    #angle_to_line_analysis(db_path, hist_mask_path, output_folder1, output_file="nw_mean_angles.txt", max_frame=max_frame,
+    #                       ws_angles=1, ws_mean=30, bs_mean=2, weighting="nw")
+   # angle_to_line_analysis(db_path, hist_mask_path, output_folder1, output_file="lw_mean_angles.txt", max_frame=max_frame,
+   #                        ws_angles=1, ws_mean=30, bs_mean=2, weighting="lw")

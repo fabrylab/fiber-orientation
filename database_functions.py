@@ -7,19 +7,8 @@ from collections import defaultdict
 import sys
 sys.path.append("/home/user/Software/fiber-orientation")
 import traceback
-
-
-def createFolder(directory):
-    '''
-    function to create directories if they dont already exist
-    '''
-    try:
-        if not os.path.exists(directory):
-            os.makedirs(directory)
-        return directory
-
-    except OSError:
-        print('Error: Creating directory. ' + directory)
+from utilities import *
+from angles import rotate_track
 
 class OpenDB:
     # context manager for database file. if db is a path a new file handle is opened
@@ -63,43 +52,86 @@ def make_iterable(value):
         return value
 
 
-
-
-def read_tracks_list_by_frame(db, window_size=1, start_frame=0, end_frame=None, return_dict=False):
+def read_tracks_iteratively(db, track_types=None, start_frame=0, end_frame=None, nanfill=False):
+    # track_type=None for all tracks
+    tracks_dict = defaultdict(list)  ### improve by using direct sql query or by iterating through frames
+    if not track_types is None:
+        track_types = make_iterable(track_types)
 
     with OpenDB(db) as db_l:
-        if not isinstance(end_frame,int):
-            end_frame = db_l.getImageCount()
-        tracks = db_l.getTracksNanPadded(start_frame=start_frame, end_frame=end_frame)
-         # calcualting vectors
-        n_vecs = tracks.shape[0] * (tracks.shape[1] - window_size)
-        vecs = tracks[:, window_size:, :] - tracks[:, :-window_size, :]
-        points = tracks[:, :-window_size, :]
-        if return_dict:
-            nan_dict = {i: ~np.isnan(v) for i, v in enumerate(vecs)} # id of each track: vectors
-            vecs_ret = {i: v[nan_dict[i][:, 0]] for i, v in enumerate(vecs)}
-            points_ret = {i: p[nan_dict[i][:, 0]] for i, p in enumerate(points)}
-            frames_ret = {i: np.arange(start_frame, end_frame-window_size, dtype=int)[nan_dict[i][:, 0]] for i,v in enumerate(vecs)}
-            # cleaning up empty ids:
-            remove_empty_entries([vecs_ret, points_ret, frames_ret], dtype="list")
+
+        if end_frame is None:
+            frames = list(range(start_frame, db_l.getImageCount()))
         else:
-            vecs = np.reshape(vecs, (n_vecs, tracks.shape[2]))
-            points = np.reshape(points, (n_vecs, tracks.shape[2]))
-            frames = np.tile(np.arange(start_frame, end_frame - window_size, dtype=int), tracks.shape[0])
-            # filtering all frames without vectors
-            nan_mask = ~np.isnan(vecs)
-            vecs_ret = vecs[nan_mask[:, 0]]
-            points_ret = points[nan_mask[:, 0]]
-            frames_ret = frames[nan_mask[:, 0]]
-    return vecs_ret, points_ret, frames_ret
+            frames = list(range(start_frame, end_frame))
+
+        for i, m in enumerate(tqdm(db_l.getMarkers(frame=frames,type=track_types))):
+            if not m.track_id is None: # this excludes all non-track markers
+                tracks_dict[m.track_id].append([m.x, m.y, m.image.sort_index])
+
+    tracks_dict = {k: np.array(v) for k,v in tracks_dict.items() if len(v)>0} # not necessary??
+    if nanfill:
+        ret_tracks_dict = {}
+        for k,v in tracks_dict.items():
+            f_range = (int(np.min(v[:,2])),int(np.max(v[:,2]))) # range of frames
+            n_array = np.zeros((1+f_range[1]-f_range[0],3)) + np.nan # nan filled array of appropriate length
+            n_array[v[:,2].astype(int) - f_range[0]] = v # filling at the correct positions
+            ret_tracks_dict[k]=n_array
+        return ret_tracks_dict
+    return tracks_dict
+
+def read_tracks_NanPadded(db, start_frame=0, end_frame=None, track_types=None):
+    with OpenDB(db) as db_l:
+        if not isinstance(end_frame, int):
+            end_frame = db_l.getImageCount()
+        tracks = db_l.getTracksNanPadded(start_frame=start_frame, end_frame=end_frame, track_types=track_types)
+    return tracks
+
+def randomize_tracks(vecs, points, frames, im_shape):
+    vecs_rot = {}
+    points_rot = {}
+    frames_rot = {}
+    for (k_vec, v_vec), (k_ps, v_ps) in zip(vecs.items(), points.items()):
+        ps_rot, vs_rot = rotate_track(v_ps, v_vec, np.random.uniform(0, np.pi * 2))
+        inside_mask = ((ps_rot[:,0]<im_shape[1]) * (ps_rot[:,1]<im_shape[0]) * (ps_rot[:,0]>0) * (ps_rot[:,1]>0)).astype(bool)# points are in xy coordinates
+        vecs_rot[k_vec] = vs_rot[inside_mask]
+        points_rot[k_ps] = ps_rot[inside_mask]
+        frames_rot[k_ps] = frames[k_ps][inside_mask]
+
+    return  vecs_rot, points_rot, frames_rot
+
+
+
+def read_tracks_list_by_frame(db, window_size=1, start_frame=0, end_frame=None, return_dict=False, track_types=None):
+
+    tracks_dict = read_tracks_iteratively(db, track_types=track_types, start_frame=start_frame, end_frame=end_frame,
+                                          nanfill=True)
+
+    vecs = {k: v[window_size:, [0, 1]] - v[:-window_size, [0, 1]] for k, v in tracks_dict.items()}
+    points = {k: v[window_size:, [0, 1]] for k, v in tracks_dict.items()}
+    frames = {k: v[window_size:, 2] for k, v in tracks_dict.items()}
+    nan_filter = {k: ~np.isnan(v) for k, v in vecs.items()}
+
+    vecs = {k: v[nan_filter[k][:, 0]] for k, v in vecs.items()}
+    points = {k: v[nan_filter[k][:, 0]] for k, v in points.items()}
+    frames = {k: v[nan_filter[k][:, 0]] for k, v in frames.items()}
+    remove_empty_entries([vecs,points,frames], dtype="list")
+    if return_dict:
+        return vecs, points, frames
+    else:
+        return np.vstack(list(vecs.values())), np.vstack(list(points.values())), np.hstack(list(frames.values()))
+
+
+
+
 
 def get_orientation_line(db):
-
     with OpenDB(db) as db_l:
         e_points = [(m.x, m.y) for m in db_l.getMarkers(type="elips")]
-        straight_line = np.array(e_points[0])-np.array(e_points[3])
+        straight_line = np.array(e_points[0]) - np.array(e_points[3])
 
     return straight_line
+
 
 def read_tracks_list_by_id(db, min_id=0, max_id=np.inf):
     #db path or db object
@@ -121,3 +153,5 @@ def read_tracks_list_by_id(db, min_id=0, max_id=np.inf):
         all_frames = np.concatenate(all_frames,axis=0)
 
     return all_vecs, all_points, all_frames
+
+

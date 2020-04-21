@@ -1,20 +1,21 @@
 import numpy as np
 import copy
 from tqdm import tqdm
+from utilities import *
 
 
 def generate_rotation_matrix(angle):
     return np.array([[np.cos(angle),-np.sin(angle)],[np.sin(angle),np.cos(angle)]])
 
-def rotate_track(ps, angle):
-    com=np.nanmean(ps,axis=0)
+def rotate_track(ps, vecs, angle):
+    com = np.nanmean(ps,axis=0)
     # centralize points
     pc = ps-com
     # apply rotation
     pc_rot = np.matmul(pc, generate_rotation_matrix(angle).T)
+    vecs_rot = np.matmul(vecs, generate_rotation_matrix(angle).T) # applie same rotation to vectos, that works ?
     p = pc_rot + com # undo centralization
-    return p
-
+    return p, vecs_rot
 
 
 def get_mean_anlge_over_time(frames, max_frame, binsize_time, step_size, angs, lengths=None, weighting="nw"):
@@ -40,11 +41,11 @@ def radial_angle_distribution(points,center,angles,bins):
     return bins, hist
 
 def spatial_angle_distribution(points,angles,bins=None):
-    if not isinstance(bins,(np.ndarray,int,float)):
+    if not isinstance(bins,(np.ndarray, int, tuple)):
         bins = 10 # defuatl value innp.histogram2d
-    hist1, bins1x, bins1y = np.histogram2d(points[:,0],points[:,1],weights=angles)
-    hist2, bins2x, bins2y = np.histogram2d(points[:, 0], points[:, 1])
-    hist=np.swapaxes(hist1/hist2,axis1=0,axis2=1) # hist returns x,y array, im is in y,x array
+    hist1, bins1x, bins1y = np.histogram2d(points[:,0], points[:,1], bins=bins, weights=angles)
+    hist2, bins2x, bins2y = np.histogram2d(points[:, 0], points[:, 1], bins=bins)
+    hist=np.swapaxes(hist1/hist2, axis1=0, axis2=1) # hist returns x,y array, im is in y,x array
     return hist
 
 def project_angle(a):
@@ -54,8 +55,8 @@ def project_angle(a):
         angle = np.array([angle])
     if not isinstance(angle,np.ndarray):
         angle = np.array(angle)
-     #################### please check previous angle analysis
 
+     # this is mathematically equivalent to (np.pi/2)-np.abs((angle%np.pi)-(np.pi/2))
     angle[angle > np.pi ] = 2 * np.pi - angle[angle > np.pi ] # mapping all values > np.pi
     angle[angle > np.pi/2] = np.pi- angle[angle > np.pi/2 ]   # mapping all values > np.pi/2
     return angle
