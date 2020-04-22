@@ -87,7 +87,7 @@ def make_spheroid_spheroid_orientation_vids(db_path,hist_mask,out_path):
 
 
 
-def angle_to_center_analysis(db_path, output_folder, output_file, max_frame=None, ws_angles=1, ws_mean=30, bs_mean=2, weighting="nw"):
+def angle_to_center_analysis(db_path, output_folder, output_file, max_frame=None, ws_angles=1, ws_mean=30, bs_mean=2, weighting="nw", mark_center=True):
     '''
     Calculates the movement angle of a cell towards the closest spheroid center. The angle is projected to a range
     between 0° to 90°. A cell moving away and a cell moving towards the spheroid center both have an angle of 0 degrees.
@@ -109,12 +109,18 @@ def angle_to_center_analysis(db_path, output_folder, output_file, max_frame=None
     #reading center positions, one image of the spheroids and identifying maximal frame if max_frame==None
     createFolder(output_folder)
     out_file = os.path.join(output_folder, output_file)
+
+    im,im_shape = None,None
     with OpenDB(db_path) as db:
         centers = np.array([(m.x, m.y) for m in db.getMarkers(type="center")])
-        with suppress(FileNotFoundError):
+        try:
             im = db.getImages()[0].data
-            im_shape=im.shape
+            im_shape = im.shape
+        except FileNotFoundError:
+            print("couldn't find image and image shape for database " + db_path)
+            im_shape = (2192, 2752)
         max_frame = max_frame if isinstance(max_frame, int) else db.getImageCount()
+
 
     # reading angles, movement vectors, frames and points adn randomizing cell tracks
     vecs, points, frames = read_tracks_list_by_frame(db, window_size=ws_angles, end_frame=max_frame,
@@ -167,11 +173,16 @@ def angle_to_center_analysis(db_path, output_folder, output_file, max_frame=None
     # 2d maps of angles
     bins = (int(10*im_shape[1]*2/(im_shape[0]+im_shape[1])),int(10*im_shape[0]*2/(im_shape[0]+im_shape[1])))
     fig_spatial = display_spatial_angle_distribution(point, angs, bins=bins, fig_paras={}, imshow_paras={"cmap": "Greens"}, bg="Greys", vmin=29*2*np.pi/360,vmax=55*2*np.pi/360)
-    for c in centers:
-        fig_spatial.get_axes()[0].plot(c[0]*bins[1]/im_shape[0],c[1]*bins[0]/im_shape[1],"+", color="red")
+    if mark_center:
+        for c in centers:
+            fig_spatial.get_axes()[0].plot(c[0] * bins[1] / im_shape[0], c[1] * bins[0] / im_shape[1], "+", color="red")
+
     fig_spatial_random = display_spatial_angle_distribution(point_rand, angs_rand, bins=bins, fig_paras={}, imshow_paras={"cmap": "Greens"}, bg="Greys", vmin=29*2*np.pi/360,vmax=55*2*np.pi/360)
-    for c in centers:
-        fig_spatial_random.get_axes()[0].plot(c[0] * bins[1] / im_shape[0], c[1] * bins[0] / im_shape[1], "+", color="red")
+    if mark_center:
+        for c in centers:
+            fig_spatial_random.get_axes()[0].plot(c[0] * bins[1] / im_shape[0], c[1] * bins[0] / im_shape[1], "+",
+                                                  color="red")
+
     fig_spatial.savefig(os.path.join(output_folder,"spatial_distribution.png"))
     fig_spatial_random.savefig(os.path.join(output_folder,"spatial_distribution_random.png"))
 
@@ -182,6 +193,7 @@ def angle_to_center_analysis(db_path, output_folder, output_file, max_frame=None
     print(len(angs))
     print(np.nanmean(angs_rand))
     print(np.nanmean(angs))
+    plt.close("all")
 
 def angle_to_line_analysis(db_path, hist_mask_path, output_folder, output_file="mean_anlges.txt", max_frame=None, ws_angles=1, ws_mean=30, bs_mean=2,
                            weighting = "nw"):
@@ -247,7 +259,7 @@ def angle_to_line_analysis(db_path, hist_mask_path, output_folder, output_file="
 
 
 
-def angle_distance_distribution(db_path, output_folder, max_frame=None,  ws_angles=1, window_length=501, ymin=0,ymax=90, px_scale = None):
+def angle_distance_distribution(db_path, output_folder, max_frame=None,  ws_angles=1, window_length=501, ymin=0, ymax=90, px_scale = None):
     '''
     Calculates the distribution of the mean movement angles of cells towards the spheroid center over distance. The angle is projected to a range
     between 0° to 90°. A cell moving away and a cell moving towards the spheroid center both have an angle of 0 degrees.
@@ -268,54 +280,83 @@ def angle_distance_distribution(db_path, output_folder, max_frame=None,  ws_angl
     '''
 
     #reading center positions, one image of the spheroids and identifying maximal frame if max_frame==None
-    im = None
     createFolder(output_folder)
+    im, im_shape = None, None
     with OpenDB(db_path) as db:
         centers = np.array([(m.x, m.y) for m in db.getMarkers(type="center")])
-        with suppress(FileNotFoundError): im = db.getImages()[0].data
+        try:
+            im = db.getImages()[0].data
+            im_shape = im.shape
+        except FileNotFoundError:
+            print("couldn't find image and image shape for database " + db_path)
+            im_shape = (2192, 2752)
         max_frame = max_frame if isinstance(max_frame, int) else db.getImageCount()
 
     # reading angles, movement vectors, frames and points adn randomizing cell tracks
-    point_dict, vec_dict, frames_dict, angs_dict, dist_vectors = angles_to_centers(db_path, centers,
-                                                                    window_size=ws_angles, max_frame=max_frame)
-    point_array =  np.array(list(point_dict.values())[0])
-    distances = np.linalg.norm(point_array[:,None] - centers[None,:], axis=2) 
-    angles =  np.array(list(angs_dict.values())[0])
+    vecs, points, frames = read_tracks_list_by_frame(db, window_size=ws_angles, end_frame=max_frame,
+                                                     return_dict=True,
+                                                     track_types=None)  # reading vetctors and points as arrays
+    point_dict, vec_dict, frames_dict, angs_dict, dist_vectors = angles_to_centers(centers, vecs, points, frames)
+
+    # randomized angles
+    vecs_rot, points_rot, frames_rot = randomize_tracks(vecs, points, frames, im_shape)
+    point_dict_rand, vec_dict_rand, frames_dict_rand, angs_dict_rand, dist_vectors_rand = angles_to_centers(centers,
+                                                                                                            vecs_rot,
+                                                                                                            points_rot,
+                                                                                                            frames_rot)
+
+    distances, angles = analyze_angel_distacne_distribution(point_dict, angs_dict, centers, window_length, output_folder, px_scale=px_scale,
+                                        ymin=ymin, ymax=ymax, name_add="")
+
+    distances_rand, angles_rand = analyze_angel_distacne_distribution(point_dict_rand, angs_dict_rand, centers, window_length, output_folder, px_scale=px_scale,
+                                        ymin=ymin, ymax=ymax, name_add="randomized_")
+
+    return (distances, angles)
+
+
+
+
+
+
+def analyze_angel_distacne_distribution(point_dict, angs_dict,centers, window_length, output_folder, px_scale=None, ymin=None, ymax=None, name_add=""):
+    # splitting into dictionary according to the closest spheroid center
+
+
+    point_array = np.array(list(point_dict.values())[0])
+    distances = np.linalg.norm(point_array[:, None] - centers[None, :], axis=2)
+    distances = np.min(distances,axis=1) # selects only the colsest distnace (which is also how the angle is defined)
+    angles = np.array(list(angs_dict.values())[0])
 
     # sort depending on distance
-    distances, angles = zip(*sorted( zip( distances, angles)  ))
+    distances, angles = zip(*sorted(zip(distances, angles)))
     distances = np.array(distances)
     angles = np.array(angles)
-    
+
     # use savitzky golay filter instead of simple sliding window
     from scipy import signal
-    angle_f = signal.savgol_filter(angles, window_length=window_length, polyorder=1,   mode='mirror' )
+    angle_f = signal.savgol_filter(angles, window_length=window_length, polyorder=1, mode='mirror')
 
     # save results
-    np.save(os.path.join(output_folder, 'distances_px.npy'), distances)
-    np.save(os.path.join(output_folder, 'mean_angles_rad.npy'), angle_f)
-    
-    
+    np.save(os.path.join(output_folder, name_add+'distances_px.npy'), distances)
+    np.save(os.path.join(output_folder, name_add+'mean_angles_rad.npy'), angle_f)
+
     # plot results
     plt.figure()
     plt.grid('True')
     if px_scale is None:
-        plt.plot(distances,angle_f*(360/(2*np.pi)),'--', c='orange', label='Tracks')
-        plt.plot(distances,[45]*len(distances),'--', c='k', label='Random')
+        plt.plot(distances, angle_f * (360 / (2 * np.pi)), '--', c='orange', label='Tracks')
+        plt.plot(distances, [45] * len(distances), '--', c='k', label='Random')
         plt.xlabel('Distance')
     else:
-        plt.plot(distances*px_scale,angle_f*(360/(2*np.pi)),'--', c='orange', label='Tracks')
-        plt.plot(distances*px_scale, [45]*len(distances),'--', c='k', label='Random')
+        plt.plot(distances * px_scale, angle_f * (360 / (2 * np.pi)), '--', c='orange', label='Tracks')
+        plt.plot(distances * px_scale, [45] * len(distances), '--', c='k', label='Random')
         plt.xlabel('Distance (µm)')
     plt.ylabel('Mean Angle to spheroid (°)')
-    plt.ylim(ymin,ymax)
+    plt.ylim(ymin, ymax)
     plt.legend()
-    plt.savefig(os.path.join(output_folder, 'angle_distance.png'), dpi=350 )
+    plt.savefig(os.path.join(output_folder, name_add+'angle_distance.png'), dpi=350)
     plt.close()
- 
     return (distances, angles)
-
-
 
 if __name__=="__main__":
     #plt.ioff()
