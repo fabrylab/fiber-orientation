@@ -65,9 +65,10 @@ def read_tracks_iteratively(db, track_types=None, start_frame=0, end_frame=None,
         else:
             frames = list(range(start_frame, end_frame))
 
-        for i, m in enumerate(tqdm(db_l.getMarkers(frame=frames,type=track_types))):
-            if not m.track_id is None: # this excludes all non-track markers
-                tracks_dict[m.track_id].append([m.x, m.y, m.image.sort_index])
+        for frame in tqdm(frames):
+            for i, m in enumerate((db_l.getMarkers(frame=frame,type=track_types))):
+                if not m.track_id is None: # this excludes all non-track markers
+                    tracks_dict[m.track_id].append([m.x, m.y, m.image.sort_index])
 
     tracks_dict = {k: np.array(v) for k,v in tracks_dict.items() if len(v)>0} # not necessary??
     if nanfill:
