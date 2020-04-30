@@ -8,7 +8,7 @@ import sys
 sys.path.append("/home/user/Software/fiber-orientation")
 import traceback
 from utilities import *
-from angles import rotate_track
+from angel_calculations import rotate_track
 
 class OpenDB:
     # context manager for database file. if db is a path a new file handle is opened
@@ -45,32 +45,65 @@ def remove_empty_entries(dicts, dtype="list"):
              for ek in empty_key:
                  d.pop(ek)
 
-def make_iterable(value):
-    if not hasattr(value, '__iter__') or isinstance(value,str):
-        return [value]
-    else:
-        return value
 
 
-def read_tracks_iteratively(db, track_types=None, start_frame=0, end_frame=None, nanfill=False):
+def read_tracks_iteratively(db, track_types="all", start_frame=0, end_frame=None, nanfill=False, sort_id_mode=1):
+    # sort_id_mode == 1 identifies the frames(sort_indices) where the markers are directly
+    # sort_id_mode == 2 assumes sort_index=image_id in the database, this is 3 times faster and generally applies if you area
+    # not dealing with multiple layers or separetly added images
+
     # track_type=None for all tracks
     tracks_dict = defaultdict(list)  ### improve by using direct sql query or by iterating through frames
-    if not track_types is None:
-        track_types = make_iterable(track_types)
+
 
     with OpenDB(db) as db_l:
 
-        if end_frame is None:
-            frames = list(range(start_frame, db_l.getImageCount()))
+        if not track_types == "all":
+            track_types = make_iterable(track_types)
         else:
-            frames = list(range(start_frame, end_frame))
+            track_types = [track_id[0] for track_id in db_l.db.execute_sql("SELECT id FROM markertype WHERE mode = 4").fetchall()] #all markers of type track
 
-        for frame in tqdm(frames):
-            for i, m in enumerate((db_l.getMarkers(frame=frame,type=track_types))):
-                if not m.track_id is None: # this excludes all non-track markers
-                    tracks_dict[m.track_id].append([m.x, m.y, m.image.sort_index])
+        if end_frame is None:
+            end_frame = db_l.getImageCount()
 
-    tracks_dict = {k: np.array(v) for k,v in tracks_dict.items() if len(v)>0} # not necessary??
+        track_type_ids = []
+        for track_type in track_types:
+            if isinstance(track_type, str):
+                t_type_id = db_l.db.execute_sql("SELECT id FROM markertype WHERE name = '%s'" % (track_type)).fetchall()
+                if len(t_type_id) == 0:
+                    print("couldn't find marker/track type " + track_type)
+                else:
+                    track_type_ids.append(t_type_id[0][0])
+            else:
+                track_type_ids.append(track_type)
+
+        track_type_selector = " AND type_id IN (%s)" % ", ".join(
+            [str(x) for x in track_type_ids]) if not track_types is None else ""
+
+        if sort_id_mode == 1:
+            # image id: sort id
+            sort_id_dict = {x[0]: x[1] for x in db_l.db.execute_sql(
+                "SELECT id, sort_index FROM image WHERE  (sort_index >= %s AND sort_index < %s)" % (
+                    str(start_frame), str(end_frame))).fetchall()}
+            # all relevant image ids
+            image_id_list = "(%s)" % ", ".join([str(x) for x in list(sort_id_dict.keys())])
+            q = db_l.db.execute_sql(
+                "SELECT x, y, image_id, track_id FROM marker WHERE image_id IN %s%s" % (
+                    image_id_list, track_type_selector))
+
+        if sort_id_mode == 2:
+            # image id: sort id
+            sort_id_dict = {x[0]: x[1] for x in db_l.db.execute_sql(
+                "SELECT id, sort_index  FROM image WHERE  (sort_index >= %s AND sort_index < %s)" % (
+                    str(start_frame), str(end_frame))).fetchall()}
+            q = db_l.db.execute_sql(
+                "SELECT x, y, image_id, track_id FROM marker WHERE (image_id >= %s AND image_id < %s)%s" % (
+                    str(start_frame), str(end_frame), track_type_selector))
+
+        for m in tqdm(q.fetchall()):
+            tracks_dict[m[3]].append([m[0], m[1], sort_id_dict[m[2]]])
+    tracks_dict = {t_id:np.array(v) for t_id, v in tracks_dict.items()}
+
     if nanfill:
         ret_tracks_dict = {}
         for k,v in tracks_dict.items():
@@ -81,12 +114,14 @@ def read_tracks_iteratively(db, track_types=None, start_frame=0, end_frame=None,
         return ret_tracks_dict
     return tracks_dict
 
+
 def read_tracks_NanPadded(db, start_frame=0, end_frame=None, track_types=None):
     with OpenDB(db) as db_l:
         if not isinstance(end_frame, int):
             end_frame = db_l.getImageCount()
         tracks = db_l.getTracksNanPadded(start_frame=start_frame, end_frame=end_frame, track_types=track_types)
     return tracks
+
 
 def randomize_tracks(vecs, points, frames, im_shape):
     vecs_rot = {}
@@ -103,7 +138,7 @@ def randomize_tracks(vecs, points, frames, im_shape):
 
 
 
-def read_tracks_list_by_frame(db, window_size=1, start_frame=0, end_frame=None, return_dict=False, track_types=None):
+def read_tracks_list_by_frame(db, window_size=1, start_frame=0, end_frame=None, return_dict=False, track_types="all"):
 
     tracks_dict = read_tracks_iteratively(db, track_types=track_types, start_frame=start_frame, end_frame=end_frame,
                                           nanfill=True)
