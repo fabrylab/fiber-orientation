@@ -12,7 +12,7 @@ import clickpoints
 import sys
 sys.path.append("/home/user/Software/fiber-orientation")
 from plotting import *
-from angles import *
+from angel_calculations import *
 from fibre_orientation import benes_edge_detection_method
 #import os
 #os.chdir("/home/user/Software/fiber-orientation")

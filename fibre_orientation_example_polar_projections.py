@@ -24,7 +24,7 @@ plt.figure();plt.imshow(polar_array)
 plt.show()
 # slightly shifted image
 im = np.asarray(Image.open(r"evaluation_polar_coordinates/pure_grid.png").convert("L"))
-polar_array, max_radius, center, r_factor = polar_coordinate_transform(im, center=(200,200),radius_res=2000, angle_res=2000)
+polar_array, max_radius, center, r_factor = polar_coordinate_transform(im, center=(200,200), radius_res=2000, angle_res=2000)
 plt.figure();plt.imshow(im,cmap="Greys_r")
 plt.figure();plt.imshow(polar_array,cmap="Greys_r")
 plt.show()

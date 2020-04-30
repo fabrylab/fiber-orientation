@@ -7,9 +7,9 @@ import sys
 import re
 import matplotlib.pyplot as plt
 sys.path.append("/home/user/Software/fiber-orientation")
-from plotting import plot_binned_angle_fileds, vizualize_angles, plot_mean_angles, display_spatial_angle_distribution
+from plotting import plot_binned_angle_fileds, vizualize_angles, plot_mean_angles, display_spatial_angle_distribution, plot_distance_distribution
 from database_functions import *
-from angles import *
+from angel_calculations import *
 from contextlib import suppress
 from utilities import *
 
@@ -51,6 +51,13 @@ def read_tracks_to_binned_dict(db, binsize_time, step_size, max_frame=None):
     return vecs_b, points_b, angs_b
 
 
+def get_frames_list(db, min_frame=0, max_frame=None, ws_mean=30, bs_mean=2):
+    if max_frame is None:
+        with OpenDB(db) as db_l:
+            max_frame = db_l.getImageCount()  #
+    frames = np.arange(min_frame, max_frame - ws_mean, bs_mean)
+    return frames
+
 
 def make_spheroid_spheroid_orientation_vids(db_path,hist_mask,out_path):
     straight_line = get_orientation_line(db_path)
@@ -61,7 +68,7 @@ def make_spheroid_spheroid_orientation_vids(db_path,hist_mask,out_path):
 
     max_frame = db.getImageCount()  # that would be all frames
 
-    vecs, points, frames = read_tracks_list_by_frame(db, end_frame=max_frame, track_types=None)
+    vecs, points, frames = read_tracks_list_by_frame(db, end_frame=max_frame, track_types="all")
     db.db.close()
     hist_mask = np.load(hist_mask)
     new_folder = createFolder(out_path)
@@ -87,7 +94,7 @@ def make_spheroid_spheroid_orientation_vids(db_path,hist_mask,out_path):
 
 
 
-def angle_to_center_analysis(db_path, output_folder, output_file, max_frame=None, ws_angles=1, ws_mean=30, bs_mean=2, weighting="nw", mark_center=True):
+def angle_to_center_analysis(db_path, output_folder, output_file, min_frame=0, max_frame=None, ws_angles=1, ws_mean=30, bs_mean=2, mark_center=True, fl=[], wl=[]):
     '''
     Calculates the movement angle of a cell towards the closest spheroid center. The angle is projected to a range
     between 0° to 90°. A cell moving away and a cell moving towards the spheroid center both have an angle of 0 degrees.
@@ -123,8 +130,8 @@ def angle_to_center_analysis(db_path, output_folder, output_file, max_frame=None
 
 
     # reading angles, movement vectors, frames and points adn randomizing cell tracks
-    vecs, points, frames = read_tracks_list_by_frame(db, window_size=ws_angles, end_frame=max_frame,
-                                                     return_dict=True, track_types=None) # reading vetctors and points as arrays
+    vecs, points, frames = read_tracks_list_by_frame(db_path, window_size=ws_angles, start_frame=min_frame, end_frame=max_frame,
+                                                     return_dict=True, track_types="all") # reading vetctors and points as arrays
 
     # splitting into dictionary according to the closest spheroid center
     point_dict, vec_dict, frames_dict, angs_dict, dist_vectors = angles_to_centers(centers, vecs, points, frames)
@@ -147,22 +154,35 @@ def angle_to_center_analysis(db_path, output_folder, output_file, max_frame=None
                                      text=False, sample_factor=int(np.ceil(0.2*max_frame)))
     fig_angel_viz_rand.savefig(os.path.join(output_folder, "anlges_vizualization_randomized.png"))
 
+
+    # filtering and wieghting:
+    FW=FilterAndWeighting(angs_dict, lengths_dict, point_dict, frames_dict)
+    FW.apply_filter(fl)
+    FW.apply_weighting(wl)
+    angs_dict, lengths_dict, point_dict, frames_dict = FW.angles, FW.lengths, FW.points, FW.frames
+
+    FW_rand=FilterAndWeighting(angs_dict_rand, lengths_dict_rand, point_dict_rand, frames_dict_rand)
+    FW.apply_filter(fl)
+    FW.apply_weighting(wl)
+    angs_dict_rand, lengths_dict_rand, point_dict_rand, frames_dict_rand = FW_rand.angles, FW_rand.lengths, FW_rand.points, FW_rand.frames
+
     # calculating mean angles over time
     mas = []
     ma_rands = []
     for key in frames_dict.keys():
-        mas.append(get_mean_anlge_over_time(frames_dict[key], max_frame, ws_mean, bs_mean,
-                                            angs_dict[key], lengths=lengths_dict[key], weighting=weighting))
-        ma_rands.append(get_mean_anlge_over_time(frames_dict_rand[key], max_frame, ws_mean,
-                                                 bs_mean, angs_dict_rand[key], lengths=lengths_dict_rand[key], weighting=weighting))
+        mas.append(get_mean_anlge_over_time(frames_dict[key], min_frame, max_frame, ws_mean, bs_mean,
+                                            angs_dict[key]))
+        ma_rands.append(get_mean_anlge_over_time(frames_dict_rand[key], min_frame, max_frame, ws_mean,
+                                                 bs_mean, angs_dict_rand[key]))
 
     # plotting mean angles over time
-    labels=["spheroid " + str(i+1) for i in range(len(mas))] + ["randomly reorientated"] * len(ma_rands) #
-    fig_unweighted = plot_mean_angles(mas+ma_rands,vmin=0,vmax=np.pi/2,labels=labels)
-    fig_unweighted.savefig(os.path.join(output_folder,weighting+"_"+"mean_anlge_over_time.png"))
+    labels=["spheroid " + str(i+1) for i in range(len(mas))] + ["randomly reorientated"] * len(ma_rands)
+    frames_out = np.arange(min_frame, max_frame - ws_mean)[::bs_mean]
+
+    fig = plot_mean_angles(mas+ma_rands, frames_out, vmin=0, vmax=np.pi/2, labels=labels)
+    fig.savefig(os.path.join(output_folder,"mean_anlge_over_time.png"))
 
     # saving mean and randomized angles
-    frames_out = np.arange(0, max_frame-ws_mean)[::bs_mean]
     lvs = [frames_out]+ mas+ ma_rands
     headers = ["frames"] + ["angle to sph %s" % str(i) for i in range(len(mas))] + \
               ["angle to sph %s randomized" % str(i) for i in range(len(mas))]
@@ -195,7 +215,7 @@ def angle_to_center_analysis(db_path, output_folder, output_file, max_frame=None
     print(np.nanmean(angs))
     plt.close("all")
 
-def angle_to_line_analysis(db_path, hist_mask_path, output_folder, output_file="mean_anlges.txt", max_frame=None, ws_angles=1, ws_mean=30, bs_mean=2,
+def angle_to_line_analysis(db_path, hist_mask_path, output_folder, output_file="mean_anlges.txt", min_frame=0, max_frame=None, ws_angles=1, ws_mean=30, bs_mean=2,
                            weighting = "nw"):
     '''
     Calculates the movement angle of a cell with respect to a line for example connecting two spheroids. The line is
@@ -228,9 +248,9 @@ def angle_to_line_analysis(db_path, hist_mask_path, output_folder, output_file="
 
     hist_mask = np.load(hist_mask_path).astype(bool)
 
-    vecs, points, frames = read_tracks_list_by_frame(db, window_size=ws_angles, end_frame=max_frame,
+    vecs, points, frames = read_tracks_list_by_frame(db_path, window_size=ws_angles, start_frame=min_frame, end_frame=max_frame,
                                                      return_dict=True,
-                                                     track_types=None)  # reading vetctors and points as arrays
+                                                     track_types="all")  # reading vetctors and points as arrays
 
     # reading tracks and calculating angles
     vecs, points, frames, angs = angles_to_straight_line(straight_line, vecs, points, frames)
@@ -259,7 +279,7 @@ def angle_to_line_analysis(db_path, hist_mask_path, output_folder, output_file="
 
 
 
-def angle_distance_distribution(db_path, output_folder, max_frame=None,  ws_angles=1, window_length=501, ymin=0, ymax=90, px_scale = None):
+def angle_distance_distribution(db_path, output_folder, min_frame=0, max_frame=None, ws_angles=1, window_length=501, ymin=0, ymax=90, px_scale=None, fl=[], wl=[]):
     '''
     Calculates the distribution of the mean movement angles of cells towards the spheroid center over distance. The angle is projected to a range
     between 0° to 90°. A cell moving away and a cell moving towards the spheroid center both have an angle of 0 degrees.
@@ -293,23 +313,43 @@ def angle_distance_distribution(db_path, output_folder, max_frame=None,  ws_angl
         max_frame = max_frame if isinstance(max_frame, int) else db.getImageCount()
 
     # reading angles, movement vectors, frames and points adn randomizing cell tracks
-    vecs, points, frames = read_tracks_list_by_frame(db, window_size=ws_angles, end_frame=max_frame,
+    vecs, points, frames = read_tracks_list_by_frame(db_path, window_size=ws_angles, start_frame=min_frame, end_frame=max_frame,
                                                      return_dict=True,
-                                                     track_types=None)  # reading vetctors and points as arrays
+                                                     track_types="all")  # reading vetctors and points as arrays
     point_dict, vec_dict, frames_dict, angs_dict, dist_vectors = angles_to_centers(centers, vecs, points, frames)
-
+    lengths_dict = {key: np.linalg.norm(v, axis=1) for key, v in vec_dict.items()}  # calculating the length
     # randomized angles
     vecs_rot, points_rot, frames_rot = randomize_tracks(vecs, points, frames, im_shape)
     point_dict_rand, vec_dict_rand, frames_dict_rand, angs_dict_rand, dist_vectors_rand = angles_to_centers(centers,
                                                                                                             vecs_rot,
                                                                                                             points_rot,
                                                                                                             frames_rot)
+    lengths_dict_rand = {key: np.linalg.norm(v, axis=1) for key, v in vec_dict_rand.items()}  # calculating the length
 
-    distances, angles = analyze_angel_distacne_distribution(point_dict, angs_dict, centers, window_length, output_folder, px_scale=px_scale,
-                                        ymin=ymin, ymax=ymax, name_add="")
+    # filtering and wieghting:
+    FW=FilterAndWeighting(angs_dict, lengths_dict, point_dict, frames_dict)
+    FW.apply_filter(fl)
+    FW.apply_weighting(wl)
+    angs_dict, lengths_dict, point_dict, frames_dict = FW.angles, FW.lengths, FW.points, FW.frames
 
-    distances_rand, angles_rand = analyze_angel_distacne_distribution(point_dict_rand, angs_dict_rand, centers, window_length, output_folder, px_scale=px_scale,
-                                        ymin=ymin, ymax=ymax, name_add="randomized_")
+    FW_rand=FilterAndWeighting(angs_dict_rand, lengths_dict_rand, point_dict_rand, frames_dict_rand)
+    FW.apply_filter(fl)
+    FW.apply_weighting(wl)
+    angs_dict_rand, lengths_dict_rand, point_dict_rand, frames_dict_rand = FW_rand.angles, FW_rand.lengths, FW_rand.points, FW_rand.frames
+
+
+
+     # soritng by distance and smoothing with savgol filter
+    distances, angles, lengths, angle_f = analyze_angel_distacne_distribution(point_dict, angs_dict,lengths_dict, centers, window_length, output_folder, name_add="")
+    distances_rand, angles_rand, lengths_rand, angle_rand_f = analyze_angel_distacne_distribution(point_dict_rand, angs_dict_rand, lengths_dict_rand, centers, window_length, output_folder, name_add="randomized_")
+
+
+
+    fig = plot_distance_distribution(distances, angle_f, distances_rand, angle_rand_f, px_scale=px_scale, ymin=ymin,
+                               ymax=ymax)
+
+    fig.savefig(os.path.join(output_folder,"distance_distribution.png"))
+
 
     return (distances, angles)
 
@@ -318,7 +358,8 @@ def angle_distance_distribution(db_path, output_folder, max_frame=None,  ws_angl
 
 
 
-def analyze_angel_distacne_distribution(point_dict, angs_dict,centers, window_length, output_folder, px_scale=None, ymin=None, ymax=None, name_add=""):
+
+def analyze_angel_distacne_distribution(point_dict, angs_dict, lengths_dict, centers, window_length, output_folder, name_add=""):
     # splitting into dictionary according to the closest spheroid center
 
 
@@ -326,9 +367,9 @@ def analyze_angel_distacne_distribution(point_dict, angs_dict,centers, window_le
     distances = np.linalg.norm(point_array[:, None] - centers[None, :], axis=2)
     distances = np.min(distances,axis=1) # selects only the colsest distnace (which is also how the angle is defined)
     angles = np.array(list(angs_dict.values())[0])
-
+    lengths = np.array(list(lengths_dict.values())[0])
     # sort depending on distance
-    distances, angles = zip(*sorted(zip(distances, angles)))
+    distances, angles, lengths = zip(*sorted(zip(distances, angles, lengths)))
     distances = np.array(distances)
     angles = np.array(angles)
 
@@ -340,23 +381,7 @@ def analyze_angel_distacne_distribution(point_dict, angs_dict,centers, window_le
     np.save(os.path.join(output_folder, name_add+'distances_px.npy'), distances)
     np.save(os.path.join(output_folder, name_add+'mean_angles_rad.npy'), angle_f)
 
-    # plot results
-    plt.figure()
-    plt.grid('True')
-    if px_scale is None:
-        plt.plot(distances, angle_f * (360 / (2 * np.pi)), '--', c='orange', label='Tracks')
-        plt.plot(distances, [45] * len(distances), '--', c='k', label='Random')
-        plt.xlabel('Distance')
-    else:
-        plt.plot(distances * px_scale, angle_f * (360 / (2 * np.pi)), '--', c='orange', label='Tracks')
-        plt.plot(distances * px_scale, [45] * len(distances), '--', c='k', label='Random')
-        plt.xlabel('Distance (µm)')
-    plt.ylabel('Mean Angle to spheroid (°)')
-    plt.ylim(ymin, ymax)
-    plt.legend()
-    plt.savefig(os.path.join(output_folder, name_add+'angle_distance.png'), dpi=350)
-    plt.close()
-    return (distances, angles)
+    return (distances, angles, lengths, angle_f)
 
 if __name__=="__main__":
     #plt.ioff()
@@ -370,7 +395,7 @@ if __name__=="__main__":
     ### could use upt to 2 GB Memory and 3 minutes per database for a single analysis type
 
     angle_to_center_analysis(db_path, output_folder2, output_file="nw_mean_angles.txt", max_frame=max_frame,
-                             ws_angles=1, ws_mean=30, bs_mean=2, weighting="nw")
+                             ws_angles=1, ws_mean=30, bs_mean=2)
     #angle_to_center_analysis(db_path, output_folder2, output_file="lw_mean_angles.txt", max_frame=max_frame,
     #                         ws_angles=1, ws_mean=30, bs_mean=2, weighting="lw")
 

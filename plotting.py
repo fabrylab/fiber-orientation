@@ -5,7 +5,7 @@ import os
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 from tqdm import tqdm
 sys.path.append("/home/user/Software/fiber-orientation")
-from angles import *
+from angel_calculations import *
 from database_functions import *
 import datetime
 
@@ -42,13 +42,13 @@ def plot_angles_database(db, start_frame, end_frame, orient_line, folder = "angl
                                  os.path.join(folder, "frame%04d.png"), os.path.join(folder, "angles.mp4"))
     os.system(command)
 
-def plot_mean_angles(angles, vmin=None,vmax=None,y_label="mean angles",title="",labels=["angles near axis","angles far from axis"], angle_in_degree = True):
+def plot_mean_angles(angles, frames, vmin=None,vmax=None,y_label="mean angles",title="",labels=["angles near axis","angles far from axis"], angle_in_degree = True):
     # angles must be list of arrays or list of lists and labels must be at least as long as anlges.
 
     fig=plt.figure()
     for i,(a,l) in enumerate(zip(angles,labels)):
-        plt.plot(a, color="C" + str(i), label=l)
-    plt.hlines(np.pi / 4, 0, len(a)) # mean angle of random motion
+        plt.plot(frames,a, color="C" + str(i), label=l)
+    plt.hlines(np.pi / 4, 0, np.max(frames)) # mean angle of random motion
     plt.xlabel("time steps")
     plt.ylabel(y_label)
     plt.legend(loc="upper right")
@@ -56,6 +56,7 @@ def plot_mean_angles(angles, vmin=None,vmax=None,y_label="mean angles",title="",
     vmin = np.min(angles)-0.2*np.abs(np.min(angles)) if not isinstance(vmin,(int,float)) else vmin
     vmax = np.min(angles)+0.2*np.abs(np.min(angles)) if not isinstance(vmax,(int,float)) else vmax
     plt.ylim(vmin, vmax)
+    plt.xlim(np.min(frames),np.max(frames))
     if angle_in_degree:
         plt.gca().set_yticklabels([str(np.round(360*i/(2*np.pi)).astype(int)) for i in plt.gca().get_yticks()])
         plt.gca().set_ylabel("angle [°]",fontsize=20)
@@ -113,6 +114,30 @@ def display_spatial_angle_distribution(points,angles, bins=None,fig_paras={},ims
         add_colorbar_angles(vmin, vmax, angle_in_degree=True)
 
     return fig
+
+
+
+def plot_distance_distribution(distances, angles, distances_random=None, angles_random=None, px_scale=None, ymin=None,
+                               ymax=None, name_add=""):
+    fig = plt.figure()
+    plt.grid('True')
+    if px_scale is None:
+        plt.plot(distances, angles * (360 / (2 * np.pi)), '--', c='orange', label='Tracks')
+        plt.plot(distances, [45] * len(distances), '--', c='k', label='45°')
+        if isinstance(distances_random, (list, np.ndarray)) and isinstance(angles_random, (list, np.ndarray)):
+            plt.plot(distances_random, angles_random * (360 / (2 * np.pi)), '--', c="C0", label='random angles')
+        plt.xlabel('Distance')
+    else:
+        plt.plot(distances * px_scale, angles * (360 / (2 * np.pi)), '--', c='orange', label='Tracks')
+        plt.plot(distances * px_scale, [45] * len(distances), '--', c='k', label='45°')
+        if isinstance(distances_random, (list, np.ndarray)) and isinstance(angles_random, (list, np.ndarray)):
+            plt.plot(distances_random * px_scale, angles_random * (360 / (2 * np.pi)), '--', c="C0", label='random angles')
+        plt.xlabel('Distance (µm)')
+    plt.ylabel('Mean Angle to spheroid (°)')
+    plt.ylim(ymin, ymax)
+    plt.legend()
+    return fig
+
 
 def diplay_radial_angle_distribution(points, center, angles, bins, plt_labels=["",""]):
     '''

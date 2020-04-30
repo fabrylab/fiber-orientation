@@ -18,3 +18,10 @@ def createFolder(directory):
 
     except OSError:
         print('Error: Creating directory. ' + directory)
+
+
+def make_iterable(value):
+    if not hasattr(value, '__iter__') or isinstance(value,str):
+        return [value]
+    else:
+        return value
