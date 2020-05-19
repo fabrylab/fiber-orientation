@@ -15,23 +15,6 @@ import os
 from tqdm import tqdm
 
 
-out_folder = "/home/user/Desktop/"
-# making a 3d array from a stack
-folder1="/home/user/Desktop/biophysDS/dboehringer/20170914_A172_rep1-pos01/After/"
-images=[os.path.join(folder1,x) for x in os.listdir(folder1) if "_ch00.tif" in x]
-im_shape = plt.imread(images[0]).shape
-stack1 = np.zeros((im_shape[0],im_shape[1],len(images)))
-
-for i,im in enumerate(images):
-    stack1[:,:,i] = np.mean(plt.imread(im),axis=2)
-
-folder1="/home/user/Desktop/biophysDS/dboehringer/20170914_A172_rep1-pos01/Before/"
-images=[os.path.join(folder1,x) for x in os.listdir(folder1) if "_ch00.tif" in x]
-im_shape = plt.imread(images[0]).shape
-stack2 = np.zeros((im_shape[0],im_shape[1],len(images)))
-
-for i,im in enumerate(images):
-    stack2[:,:,i] = np.mean(plt.imread(im),axis=2)
 
 
 def get_field_shape3d(image_size, window_size, overlap):
@@ -415,12 +398,34 @@ def extended_search_area_piv2D(frame_a,
     else:
         return u, v
 
+"""
+load stacks
+"""
 
+out_folder = r"\\131.188.117.96\biophysDS\dboehringer\Platte_4\Software\3d-openpiv\test"
+# making a 3d array from a stack
+folder1=r"\\131.188.117.96\biophysDS/dboehringer/20170914_A172_rep1-pos01/After/"
+images=[os.path.join(folder1,x) for x in os.listdir(folder1) if "_ch00.tif" in x]
+im_shape = plt.imread(images[0]).shape
+stack1 = np.zeros((im_shape[0],im_shape[1],len(images)))
 
+for i,im in enumerate(images):
+    stack1[:,:,i] = np.mean(plt.imread(im),axis=2)
 
-window_size = (50,50,50)
-overlap = 25
-search_area =  (50,50,50)
+folder1=r"\\131.188.117.96\biophysDS/dboehringer/20170914_A172_rep1-pos01/Before/"
+images=[os.path.join(folder1,x) for x in os.listdir(folder1) if "_ch00.tif" in x]
+im_shape = plt.imread(images[0]).shape
+stack2 = np.zeros((im_shape[0],im_shape[1],len(images)))
+
+for i,im in enumerate(images):
+    stack2[:,:,i] = np.mean(plt.imread(im),axis=2)
+"""
+3d piv
+"""
+
+window_size = (51,51,51)
+overlap = 31  #11                # piv issue even-odd numbers.. ?
+search_area =  (51,51,51)
 n_rows, n_cols, n_z = get_field_shape3d(stack1.shape, window_size, overlap)
 print("needs %s iterations"%str(n_rows))
 
@@ -436,19 +441,35 @@ np.save(os.path.join(out_folder,"v.npy"), v)
 np.save(os.path.join(out_folder,"w.npy"), w)
 np.save(os.path.join(out_folder,"sig_noise.npy"), sig2noise)
 
+"""
+visualize results
+"""
 
-'''
-im1 = stack1[:,:,2].astype(np.int32)
-im2 = stack2[:,:,2].astype(np.int32)
-extended_search_area_piv2D(im1,
-                             im2,
-                             100,
-                             50,
-                             1,
-                             100,
-                             subpixel_method='gaussian',
-                             sig2noise_method=None,
-                             width=2,
-                             nfftx=None,
-                             nffty=None)
-'''
+from mpl_toolkits.mplot3d import Axes3D
+fig = plt.figure()
+ax = fig.gca(projection='3d', rasterized=True)
+# make grid
+x_ = np.arange(0., n_rows,1)
+y_ = np.arange(0., n_cols,1)
+z_ = np.arange(0., n_z,1)
+x, y, z = np.meshgrid(x_, y_, z_, indexing='ij')
+#filter defos - or use 0 100
+mask_filtered = (np.sqrt(u**2+v**2+w**2)>np.nanpercentile(np.sqrt(u**2+v**2+w**2),0)) &(np.sqrt(u**2+v**2+w**2)<np.nanpercentile(np.sqrt(u**2+v**2+w**2),100)) 
+
+# make cmap
+distance =np.sqrt(x**2+y**2+z**2)
+deformation = np.sqrt(u**2+v**2+w**2)[mask_filtered].ravel()   # =   # np.linalg.norm([u[0,0,0],v[0,0,0],w[0,0,0]])
+norm = matplotlib.colors.Normalize()   #    vmin=0,vmax=22
+norm.autoscale(deformation) 
+cm = matplotlib.cm.jet
+sm = matplotlib.cm.ScalarMappable(cmap=cm, norm=norm)
+sm.set_array([])
+# plot the data
+plt.colorbar(sm)
+quiver_filtered = ax.quiver(x[mask_filtered], y[mask_filtered], z[mask_filtered], u[mask_filtered], v[mask_filtered], w[mask_filtered]  ,
+                          normalize=True ,alpha=0.3,  pivot='tip', colors=cm(norm(deformation)))   # color= plt.cm.hsv(deformation/np.max(deformation))  )  #  )  ,length=1.3, arrow_length_ratio=1,  linewidth=0.5
+ax.w_xaxis.set_pane_color((0.2, 0.2, 0.2, 1.0))
+ax.w_yaxis.set_pane_color((0.2, 0.2, 0.2, 1.0))
+ax.w_zaxis.set_pane_color((0.2, 0.2, 0.2, 1.0))
+
+
