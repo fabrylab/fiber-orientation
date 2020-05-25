@@ -454,8 +454,7 @@ y_ = np.arange(0., n_cols,1)
 z_ = np.arange(0., n_z,1)
 x, y, z = np.meshgrid(x_, y_, z_, indexing='ij')
 #filter defos - or use 0 100
-mask_filtered = (np.sqrt(u**2+v**2+w**2)>np.nanpercentile(np.sqrt(u**2+v**2+w**2),0)) &(np.sqrt(u**2+v**2+w**2)<np.nanpercentile(np.sqrt(u**2+v**2+w**2),100)) 
-
+mask_filtered = (np.sqrt(u**2+v**2+w**2)>=np.nanpercentile(np.sqrt(u**2+v**2+w**2),0)) &(np.sqrt(u**2+v**2+w**2)<=np.nanpercentile(np.sqrt(u**2+v**2+w**2),100)) 
 # make cmap
 distance =np.sqrt(x**2+y**2+z**2)
 deformation = np.sqrt(u**2+v**2+w**2)[mask_filtered]
