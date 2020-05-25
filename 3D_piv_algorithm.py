@@ -77,7 +77,7 @@ def extended_search_area_piv3D(frame_a,
 
 
                 # compute correlation map
-                if np.sum(window_a!=0)>0:
+                if np.sum(window_a!=0) > 0:
                     corr = correlate_windows3D(search_area, window_a, nfftx=nfftx, nffty=nffty)
                     c = CorrelationFunction3D(corr)
 
@@ -104,7 +104,7 @@ def extended_search_area_piv3D(frame_a,
     if sig2noise_method:
         return u, v, w, sig2noise
     else:
-        return u, v,w
+        return u, v, w
 
 
 def correlate_windows3D(window_a, window_b, nfftx=None, nffty=None, nfftz= None):
@@ -427,7 +427,7 @@ window_size = (51,51,51)
 overlap = 31  #11                # piv issue even-odd numbers.. ?
 search_area =  (51,51,51)
 n_rows, n_cols, n_z = get_field_shape3d(stack1.shape, window_size, overlap)
-print("needs %s iterations"%str(n_rows))
+print("needs %s iterations" % str(n_rows))
 
 u, v, w, sig2noise = extended_search_area_piv3D(stack1, stack2, window_size, overlap, 1, search_area, subpixel_method='gaussian',
                              sig2noise_method='peak2peak',
@@ -436,10 +436,10 @@ u, v, w, sig2noise = extended_search_area_piv3D(stack1, stack2, window_size, ove
                              nffty=None)
 
 
-np.save(os.path.join(out_folder,"u.npy"), u)
-np.save(os.path.join(out_folder,"v.npy"), v)
-np.save(os.path.join(out_folder,"w.npy"), w)
-np.save(os.path.join(out_folder,"sig_noise.npy"), sig2noise)
+np.save(os.path.join(out_folder, "u.npy"), u)
+np.save(os.path.join(out_folder, "v.npy"), v)
+np.save(os.path.join(out_folder, "w.npy"), w)
+np.save(os.path.join(out_folder, "sig_noise.npy"), sig2noise)
 
 """
 visualize results

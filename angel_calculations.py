@@ -219,3 +219,18 @@ def extract_angles_area(hist_mask, points_b, *args, dtype="array"):
             others.append(ar[inside_select])
     return points_select, others
 
+'''
+test_vecs=np.array([[[1,1],[1,0],[0,1]],
+                   [[-1,0],[-1,-1],[-1,0]],
+                   [[-1,1],[0,-1],[1,-1]]])
+to = np.arctan2(test_vecs[:,:,0], test_vecs[:,:,1])
+
+
+to = to % (2 * np.pi)
+# projecting angles to range of [0,pi]
+to[to > np.pi] = to[to > np.pi] - np.pi  # mapping all values > np.pi
+
+f,a = show_quiver(test_vecs[:,:,0], test_vecs[:,:,1], scale_ratio=0.1, alpha=0)
+im=a.imshow(to, alpha=1)
+plt.colorbar(im)
+'''
