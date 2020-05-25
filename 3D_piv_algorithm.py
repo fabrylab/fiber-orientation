@@ -444,7 +444,7 @@ np.save(os.path.join(out_folder,"sig_noise.npy"), sig2noise)
 """
 visualize results
 """
-
+# # add color
 from mpl_toolkits.mplot3d import Axes3D
 fig = plt.figure()
 ax = fig.gca(projection='3d', rasterized=True)
@@ -458,18 +458,21 @@ mask_filtered = (np.sqrt(u**2+v**2+w**2)>np.nanpercentile(np.sqrt(u**2+v**2+w**2
 
 # make cmap
 distance =np.sqrt(x**2+y**2+z**2)
-deformation = np.sqrt(u**2+v**2+w**2)[mask_filtered].ravel()   # =   # np.linalg.norm([u[0,0,0],v[0,0,0],w[0,0,0]])
-norm = matplotlib.colors.Normalize()   #    vmin=0,vmax=22
-norm.autoscale(deformation) 
-cm = matplotlib.cm.jet
-sm = matplotlib.cm.ScalarMappable(cmap=cm, norm=norm)
-sm.set_array([])
+deformation = np.sqrt(u**2+v**2+w**2)[mask_filtered]
+cbound=[0,np.max(deformation)]
+colors = matplotlib.cm.jet(deformation-cbound[0]/cbound[1]-cbound[0])
 # plot the data
-plt.colorbar(sm)
 quiver_filtered = ax.quiver(x[mask_filtered], y[mask_filtered], z[mask_filtered], u[mask_filtered], v[mask_filtered], w[mask_filtered]  ,
-                          normalize=True ,alpha=0.3,  pivot='tip', colors=cm(norm(deformation)))   # color= plt.cm.hsv(deformation/np.max(deformation))  )  #  )  ,length=1.3, arrow_length_ratio=1,  linewidth=0.5
+                          normalize=True ,alpha=0.7,  pivot='tip', colors= colors )  # color= plt.cm.hsv(deformation/np.max(deformation))  )  #  )  ,length=1.3, arrow_length_ratio=1,  linewidth=0.5
 ax.w_xaxis.set_pane_color((0.2, 0.2, 0.2, 1.0))
 ax.w_yaxis.set_pane_color((0.2, 0.2, 0.2, 1.0))
 ax.w_zaxis.set_pane_color((0.2, 0.2, 0.2, 1.0))
+#plot cbar
+norm = matplotlib.colors.Normalize(vmin=cbound[0],vmax=cbound[1])
+cm = matplotlib.cm.jet
+sm = matplotlib.cm.ScalarMappable(cmap=cm, norm=norm)
+sm.set_array([])
+plt.colorbar(sm)
+
 
 
