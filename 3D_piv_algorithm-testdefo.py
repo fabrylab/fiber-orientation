@@ -84,6 +84,23 @@ def plot_3_D_alpha(data):
     ax.set_zlabel("z")
     plt.show()
 
+def check_search_area_size(search_area_size, window_size, warn=True):
+    # dsiplacement between window and searcharea can only be uniquely defined if window_size + searcharea_size is an even number
+    # this warns, and corrects search_area_size if this is not the case
+    corr_size = np.array(search_area_size) + np.array(window_size) - 1  # size of the correlation field
+    search_area_size_corrected = []
+    for i, c in enumerate(corr_size):
+        if c % 2 == 0:  # if this is the case the blocks of window and searcharea have no uniequely defined alignement
+            search_area_size_corrected.append(search_area_size[i] + 1)
+            if warn:
+                print(
+                    "search_area_size at position %s does not match windowsize; increased search_area_size by 1" % str(
+                        i))
+        else:
+            search_area_size_corrected.append(search_area_size[i])
+
+    return search_area_size_corrected
+
 
 def extended_search_area_piv3D(frame_a,
                              frame_b,
@@ -96,6 +113,12 @@ def extended_search_area_piv3D(frame_a,
                              width=2,
                              nfftx=None,
                              nffty=None):
+
+
+
+    # dsiplacement between window and searcharea can only be uniquely defined if window_size + searcharea_size is an even number
+    # this warns, and corrects search_area_size if this is not the case
+    search_area_size = check_search_area_size(search_area_size, window_size, warn=True)
 
     p1 = int(np.ceil((window_size[0] + search_area_size[0]) / 2))
     p2 = int(np.ceil((window_size[1] + search_area_size[1]) / 2))
@@ -122,16 +145,16 @@ def extended_search_area_piv3D(frame_a,
             for Z, z in enumerate(range(0, frame_a.shape[2] - window_size[2], window_size[2] - overlap)):
                 # get interrogation window matrix from frame a
                 window_a = frame_a[i:i+window_size[0], j:j+window_size[1], z:z+window_size[2]]
-                #print (i,j,z)
-                # if  (43 in (np.arange(i,i+window_size[0])) and 43 in np.arange(j,j+window_size[1]) and 43 in np.arange(z,z+window_size[2])):
-                #      print(i)
+                print (i,j,z)
+                if  (43 in (np.arange(i,i+window_size[0])) and 43 in np.arange(j,j+window_size[1]) and 43 in np.arange(z,z+window_size[2])):
+                     print(i)
 
-                #      grid = np.meshgrid((np.arange(i,i+window_size[0])) , np.arange(j,j+window_size[1]) , np.arange(z,z+window_size[2]))
-                #      plot_3_D(grid, window_a)
+                     grid = np.meshgrid((np.arange(i,i+window_size[0])) , np.arange(j,j+window_size[1]) , np.arange(z,z+window_size[2]))
+                     plot_3_D(grid, window_a)
 
 
 
-                
+
                 # get search area using frame b
                 r1 = np.array((i - search_area_size[0] / 2, i + search_area_size[0] / 2)) + window_size[0] / 2 + p1 # addinging index shift due to padding
                 r2 = np.array((j - search_area_size[1] / 2, j + search_area_size[1] / 2)) + window_size[1] / 2 + p2
@@ -143,83 +166,60 @@ def extended_search_area_piv3D(frame_a,
 
                 search_area = frame_b[r1[0]:r1[1], r2[0]:r2[1], r3[0]:r3[1]]
 
-                #grid = np.meshgrid(np.arange(r1[0],r1[1]), np.arange(r2[0],r2[1]), np.arange(r3[0],r3[1]))
-                #plot_3_D(grid, search_area)
+                grid = np.meshgrid(np.arange(r1[0],r1[1]), np.arange(r2[0],r2[1]), np.arange(r3[0],r3[1]))
+                plot_3_D(grid, search_area)
 
 
              ############################## testing code
-                # search_area = np.zeros((5,5,5))
-                # window_a = np.zeros((3,3,3))
-                # window_a[1,1,1] = 1
-                # search_area[1,1,2] = 1
-                # plot_3_D_alpha(search_area)
-                # plot_3_D_alpha(window_a)
+                search_area = np.zeros((3,3,3))
+                window_a = np.zeros((5,5,5))
+                window_a[1,1,1] = 1
+                search_area[1,1,2] = 1
+                plot_3_D_alpha(search_area)
+                plot_3_D_alpha(window_a)
 
-                # oc = correlate(window_a, search_area , mode="full",method="fft")
-                # plot_3_D_alpha(oc)
-
+                simple_defo(search_area, window_a)
 
 
                 def simple_defo(x, y):
-                    
-                    #x = np.array([[0,1,0,0,0],[0,0,0,0,0]])
-                    #y = np.array([[0,0,0,0],[0,0,0,1]])
-                    
                     f = correlate(x, y, mode="full", method="fft")
                     min_pos = np.unravel_index(np.argmax(f), f.shape)
-                    
-                    fr = correlate(y, x, mode="full", method="fft")
-                    min_posr = np.unravel_index(np.argmax(fr), fr.shape)
-                    
-                    # d   = y.shape[0] - min_pos[0] - 1
-                    # d_r = y.shape[0] - min_pos[0] - 1
-                    
-                    # print(d)
-                    # print(d_r)
-                    
-                    
+                    corr_center = (np.array(f.shape) - 1)/2
                     defo = []
                     if len(min_pos) > 0:
-                        #defo.append(min_pos[0] - y.shape[0] -int((x.shape[0]-y.shape[0])/2)) # unclear dfinition if y shape- x shape not devisible by 2
-                        defo.append(y.shape[0] - min_pos[0] - 1)
+                        defo.append(corr_center[0] - min_pos[0])
                     if len(min_pos) > 1:
-                        defo.append(y.shape[1] - min_pos[1] - 1)#
+                        defo.append(corr_center[1] - min_pos[1])#
                     if len(min_pos) > 2:
-                        defo.append(y.shape[2] - min_pos[2] - 1)
+                        defo.append(corr_center[2] - min_pos[2])
                     return defo
-                
-                # print ((window_a.shape, search_area.shape))
-                # print (simple_defo(window_a, search_area))
+
+
+
+
                 ##############################
                 # compute correlation map
                 if np.sum(window_a!=0)>0:
 
-                    corr = correlate(search_area, window_a, method="fft", mode="full") # measure time and compare
+                    corr = correlate(search_area, window_a, method="fft") # measure time and compare
                     # corr = correlate_windows3D(search_area, window_a, nfftx=nfftx, nffty=nffty)
                     c = CorrelationFunction3D(corr)
 
                     # find subpixel approximation of the peak center
                     i_peak, j_peak, z_peak = c.subpixel_peak_position(subpixel_method)
-               
-                    # velocities ##### major changes
-                    ########  wrong
-                    # v[I, J, Z] = (corr.shape[0] - i_peak - 1)/ dt
-                    # u[I, J, Z] = (corr.shape[1] - j_peak - 1)/ dt    # also change u - v finallly
-                    # w[I, J, Z] = (corr.shape[2] - z_peak - 1)/ dt
+
+                    # confirm this// especially if wnidowsize > search area is possibel (should be?)
+                    corr_center = (np.array(f.shape) - 1) / 2
+                    v[I, J, Z] = (corr_center[0] - i_peak)/ dt
+                    u[I, J, Z] = (corr_center[1]- j_peak)/ dt
+                    w[I, J, Z] = (corr_center[2] - z_peak)/ dt
                     ########
-                        
-                    u[I, J, Z] = simple_defo(search_area, window_a)[0]
-                    v[I, J, Z] =simple_defo(search_area, window_a)[1]
-                    w[I, J, Z] = simple_defo(search_area, window_a)[2]
-                    
-                    print (u.max(),v.max(),w.max())
-     
                     # compute signal to noise ratio
                     if sig2noise_method:
                         sig2noise[I, J, Z] = c.sig2noise_ratio(sig2noise_method, width)
                 else:
-                    #v[I, J] = 0.0
-                    #u[I, J] = 0.0
+                    v[I, J] = 0.0
+                    u[I, J] = 0.0
                     # compute signal to noise ratio
                     if sig2noise_method:
                         sig2noise[I, J] = np.inf
@@ -527,36 +527,23 @@ def extended_search_area_piv2D(frame_a,
 load stacks
 """
 
-out_folder = r"\\131.188.117.96\biophysDS\dboehringer\Platte_4\Software\3d-openpiv\test"
-# making a 3d array from a stack
-folder1=r"\\131.188.117.96\biophysDS/dboehringer/20170914_A172_rep1-pos01/After/"
-images=[os.path.join(folder1,x) for x in os.listdir(folder1) if "_ch00.tif" in x]
-im_shape = plt.imread(images[0]).shape
-stack1 = np.zeros((im_shape[0],im_shape[1],len(images)))
+# out_folder = r"\\131.188.117.96\biophysDS\dboehringer\Platte_4\Software\3d-openpiv\test"
+# # making a 3d array from a stack
+# folder1=r"\\131.188.117.96\biophysDS/dboehringer/20170914_A172_rep1-pos01/After/"
+# images=[os.path.join(folder1,x) for x in os.listdir(folder1) if "_ch00.tif" in x]
+# im_shape = plt.imread(images[0]).shape
+# stack1 = np.zeros((im_shape[0],im_shape[1],len(images)))
 
-for i,im in enumerate(images):
-    stack1[:,:,i] = np.mean(plt.imread(im),axis=2)
+# for i,im in enumerate(images):
+#     stack1[:,:,i] = np.mean(plt.imread(im),axis=2)
 
-folder1=r"\\131.188.117.96\biophysDS/dboehringer/20170914_A172_rep1-pos01/Before/"
-images=[os.path.join(folder1,x) for x in os.listdir(folder1) if "_ch00.tif" in x]
-im_shape = plt.imread(images[0]).shape
-stack2 = np.zeros((im_shape[0],im_shape[1],len(images)))
+# folder1=r"\\131.188.117.96\biophysDS/dboehringer/20170914_A172_rep1-pos01/Before/"
+# images=[os.path.join(folder1,x) for x in os.listdir(folder1) if "_ch00.tif" in x]
+# im_shape = plt.imread(images[0]).shape
+# stack2 = np.zeros((im_shape[0],im_shape[1],len(images)))
 
-for i,im in enumerate(images):
-    stack2[:,:,i] = np.mean(plt.imread(im),axis=2)
-    
-
-#test single defo
-# stack1 = np.zeros((10,10,10))
-# stack1[4,4,1] = 1
-
-# stack2 =  np.zeros((10,10,10))
-# stack2[3,3,2] = 1 
-
- 
-# window_size = (7,7,7)
-# overlap = 0  #11                # piv issue even-odd numbers.. ?
-# search_area =  (7,7,7)   
+# for i,im in enumerate(images):
+#     stack2[:,:,i] = np.mean(plt.imread(im),axis=2)
 
 
 """
@@ -564,33 +551,30 @@ test stacks
 """
 out_folder = r"\\131.188.117.96\biophysDS\dboehringer\Platte_4\Software\3d-openpiv\test-system"
 
-window_size = (10,10,10)
-overlap = 0  #11                # piv issue even-odd numbers.. ?
-search_area =  (10,10,10)   
 
-n_rows, n_cols, n_z = get_field_shape3d(stack1.shape, window_size, overlap)
-print("needs %s iterations"%str(n_rows))
+#   test single defo
+# stack1 = np.zeros((10,10,10))
+# stack1[4,4,1] = 1
 
-u, v, w, sig2noise = extended_search_area_piv3D(stack1, stack2, window_size, overlap, 1, search_area, subpixel_method='gaussian',
-                              sig2noise_method='peak2peak',
-                              width=2,
-                              nfftx=None,
-                              nffty=None)
+# stack2 =  np.zeros((10,10,10))
+# stack2[4,3,2] = 1
 
 
+# window_size = (6,6,6)
+# overlap = 3  #11                # piv issue even-odd numbers.. ?
+# search_area =  (6,6,6)
 
 
+#test sphere defo
+center = (50, 50, 50)
+size = (100, 100, 100)
+distance = np.linalg.norm(np.subtract(np.indices(size).T,np.asarray(center)), axis=len(center))
+sphere1 = np.ones(size) * (distance<=10)
 
-# #test sphere defo
-# center = (50, 50, 50)
-# size = (100, 100, 100)
-# distance = np.linalg.norm(np.subtract(np.indices(size).T,np.asarray(center)), axis=len(center))
-# sphere1 = np.ones(size) * (distance<=10)
-
-# center = (50, 50, 50)
-# size = (100, 100, 100)
-# distance = np.linalg.norm(np.subtract(np.indices(size).T,np.asarray(center)), axis=len(center))
-# sphere2 = np.ones(size) * (distance<=0)
+center = (50, 50, 50)
+size = (100, 100, 100)
+distance = np.linalg.norm(np.subtract(np.indices(size).T,np.asarray(center)), axis=len(center))
+sphere2 = np.ones(size) * (distance<=5)
 
 #Plot sphere
 # fig =plt.figure(figsize=(6,6))
@@ -598,8 +582,8 @@ u, v, w, sig2noise = extended_search_area_piv3D(stack1, stack2, window_size, ove
 # ax.voxels(sphere2, facecolors="r", edgecolor='k',alpha=0.4)
 # ax.voxels(sphere1, facecolors="b", edgecolor='k',alpha=0.4)
 # plt.show()
-    
-# 
+
+#
 # ax = fig.gca(projection='3d')
 # ax.voxels(sphere2, facecolors="r", edgecolor='k',alpha=0.4)
 # ax.voxels(sphere1, facecolors="b", edgecolor='k',alpha=0.4)
@@ -609,38 +593,38 @@ u, v, w, sig2noise = extended_search_area_piv3D(stack1, stack2, window_size, ove
 
 
 
-# 3d piv sphere
+# 3d piv
 
-# window_size = (15,15,15)
-# overlap = 10#11                
-# search_area = (30,30,30)
+window_size = (10,10,10)
+overlap = 8#11
+search_area = (30,30,30)
 
-# n_rows, n_cols, n_z = get_field_shape3d(sphere1.shape, window_size, overlap)
-# print("needs %s iterations"%str(n_rows))
+n_rows, n_cols, n_z = get_field_shape3d(sphere1.shape, window_size, overlap)
+print("needs %s iterations"%str(n_rows))
 
-# u, v, w, sig2noise = extended_search_area_piv3D(sphere1, sphere2, window_size, overlap, 1, search_area, subpixel_method='gaussian',
-#                              sig2noise_method='peak2peak',
-#                              width=2,
-#                              nfftx=None,
-#                              nffty=None)
-
-
-# np.save(os.path.join(out_folder,"u.npy"), u)
-# np.save(os.path.join(out_folder,"v.npy"), v)
-# np.save(os.path.join(out_folder,"w.npy"), w)
-# np.save(os.path.join(out_folder,"sig_noise.npy"), sig2noise)
+u, v, w, sig2noise = extended_search_area_piv3D(sphere1, sphere2, window_size, overlap, 1, search_area, subpixel_method='gaussian',
+                             sig2noise_method='peak2peak',
+                             width=2,
+                             nfftx=None,
+                             nffty=None)
 
 
+np.save(os.path.join(out_folder,"u.npy"), u)
+np.save(os.path.join(out_folder,"v.npy"), v)
+np.save(os.path.join(out_folder,"w.npy"), w)
+np.save(os.path.join(out_folder,"sig_noise.npy"), sig2noise)
 
 
-"""
+
+
+
 # visualize signal to noise ratio
 fig =plt.figure(figsize=(6,6))
 ax = fig.gca(projection='3d')
 
-col = np.zeros((sig2noise.shape[0],sig2noise.shape[0],sig2noise.shape[0], 4)) 
+col = np.zeros((sig2noise.shape[0],sig2noise.shape[0],sig2noise.shape[0], 4))
 
-signoise_fil = sig2noise.copy()  
+signoise_fil = sig2noise.copy()
 signoise_fil[(sig2noise==Inf)] = np.nanmax(sig2noise[~(sig2noise==Inf)])
 signoise_fil = signoise_fil/np.nanmax(signoise_fil)
 signoise_fil[np.isnan(signoise_fil)] = 0
@@ -651,7 +635,7 @@ col[:,:,:,3] = signoise_fil
 ax.voxels(sig2noise, facecolors=col  ,alpha=0.4)
 
 plt.show()
-"""
+
 
 
 
@@ -661,7 +645,7 @@ plt.show()
 
 # window_size = (11,11,11)
 # overlap = 0  #11                # piv issue even-odd numbers.. ?
-# search_area = (31,31,31)  
+# search_area = (31,31,31)
 
 
 # n_rows, n_cols, n_z = get_field_shape3d(stack1.shape, window_size, overlap)
@@ -694,23 +678,26 @@ y_ = np.arange(0., n_cols,1)
 z_ = np.arange(0., n_z,1)
 x, y, z = np.meshgrid(x_, y_, z_, indexing='ij')
 #filter defos - or use 0 100
-mask_filtered = (np.sqrt(u**2+v**2+w**2)>=np.nanpercentile(np.sqrt(u**2+v**2+w**2),0)) &(np.sqrt(u**2+v**2+w**2)<=np.nanpercentile(np.sqrt(u**2+v**2+w**2),100)) 
+mask_filtered = (np.sqrt(u**2+v**2+w**2)>=np.nanpercentile(np.sqrt(u**2+v**2+w**2),0)) &(np.sqrt(u**2+v**2+w**2)<=np.nanpercentile(np.sqrt(u**2+v**2+w**2),100))
 # make cmap
 distance =np.sqrt(x**2+y**2+z**2)
 deformation = np.sqrt(u**2+v**2+w**2)[mask_filtered]
-#cbound=[0,10]  
+#cbound=[0,10]
 cbound=[0,np.max(deformation)]
 # create normalized color map for arrows
 norm = matplotlib.colors.Normalize(vmin=cbound[0],vmax=cbound[1])
 cm = matplotlib.cm.jet
 sm = matplotlib.cm.ScalarMappable(cmap=cm, norm=norm)
 sm.set_array([])
-# different option 
+# different option
 #colors = sm.to_rgba(np.ravel(deformation))
-colors = matplotlib.cm.jet( np.ravel((deformation-cbound[0])/(cbound[1]-cbound[0]) )) # 
+colors = matplotlib.cm.jet( np.ravel((deformation-cbound[0])/(cbound[1]-cbound[0]) )) #
 # plot the data
 quiver_filtered = ax.quiver(x[mask_filtered], y[mask_filtered], z[mask_filtered], u[mask_filtered], v[mask_filtered], w[mask_filtered]  ,
-                          normalize=True ,alpha=0.7,  pivot='tip',color=colors)#      cmap=cm, norm=norm      )  # c ,length=1.3, arrow_length_ratio=1,  linewidth=0.5
+                          normalize=False ,alpha=0.7,  pivot='tip',color=colors)#      cmap=cm, norm=norm      )  # c ,length=1.3, arrow_length_ratio=1,  linewidth=0.5
+
+#quiver_filtered = ax.quiver([10,12], [10,12], [10,12], [],0,5, normalize=True ,alpha=0.7,  pivot='tip',color = matplotlib.cm.jet(40/40)  )#      cmap=cm, norm=norm      )  # c ,length=1.3, arrow_length_ratio=1,  linewidth=0.5
+
 
 ax.w_xaxis.set_pane_color((0.2, 0.2, 0.2, 1.0))
 ax.w_yaxis.set_pane_color((0.2, 0.2, 0.2, 1.0))
