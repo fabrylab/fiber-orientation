@@ -402,9 +402,9 @@ def extended_search_area_piv2D(frame_a,
 load stacks
 """
 
-out_folder = r"/home/user/Desktop/biophysDS/dboehringer/Platte_4/Software/3d-openpiv/test"
+out_folder = r"\\131.188.117.96\biophysDS\dboehringer\Platte_4\Software\3d-openpiv\test"
 # making a 3d array from a stack
-folder1=r"/home/user/Desktop/biophysDS/dboehringer/20170914_A172_rep1-pos01/After/"
+folder1=r"\\131.188.117.96\biophysDS/dboehringer/20170914_A172_rep1-pos01/After/"
 images=[os.path.join(folder1,x) for x in os.listdir(folder1) if "_ch00.tif" in x]
 im_shape = plt.imread(images[0]).shape
 stack1 = np.zeros((im_shape[0],im_shape[1],len(images)))
@@ -412,12 +412,12 @@ stack1 = np.zeros((im_shape[0],im_shape[1],len(images)))
 for i,im in enumerate(images):
     stack1[:,:,i] = np.mean(plt.imread(im),axis=2)
 
-folder1=r"/home/user/Desktop/biophysDS/dboehringer/20170914_A172_rep1-pos01/Before/"
+folder1=r"\\131.188.117.96\biophysDS/dboehringer/20170914_A172_rep1-pos01/Before/"
 images=[os.path.join(folder1,x) for x in os.listdir(folder1) if "_ch00.tif" in x]
 im_shape = plt.imread(images[0]).shape
 stack2 = np.zeros((im_shape[0],im_shape[1],len(images)))
 
-for i,im in enumerate(images[:10]):
+for i,im in enumerate(images):
     stack2[:,:,i] = np.mean(plt.imread(im),axis=2)
 """
 3d piv

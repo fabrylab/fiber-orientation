@@ -25,3 +25,20 @@ def make_iterable(value):
         return [value]
     else:
         return value
+
+def normalize(image, lb=0.1, ub=99.9):
+    '''
+    nomralizies image to  a range from 0 and 1 and cuts of extrem values
+    e.g. lower tehn 0.1 percentile and higher then 99.9m percentile
+
+    :param image:
+    :param lb: percentile of lower bound for filter
+    :param ub: percentile of upper bound for filter
+    :return:
+    '''
+
+    image = image - np.percentile(image, lb)  # 1 Percentile
+    image = image / np.percentile(image, ub)  # norm to 99 Percentile
+    image[image < 0] = 0.0
+    image[image > 1] = 1.0
+    return image

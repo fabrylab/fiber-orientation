@@ -3,7 +3,7 @@ trying to apply structure tensor locally --> coud be used to "filter out all non
 
 '''
 
-from fibre_orientation_structure_tensor3 import *
+from fo_testing3 import *
 
 
 
