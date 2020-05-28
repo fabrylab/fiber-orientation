@@ -1,41 +1,70 @@
-### following wiki "structure tensor" /Orientation J
+
+'''
+by Andreas Bauer 29.05.2020
+Analyzing the orientation of structures like collagen fibres or cells in cell patches by analyzing the gradient of
+images locally or as a whole. This uses the structure tensor https://en.wikipedia.org/wiki/Structure_tensor
+and builds heavily on the method presented here http://bigwww.epfl.ch/demo/orientation/
+'''
 
 import matplotlib.pyplot as plt
-import numpy as np
-from fibre_orientation import normalizing
 from skimage.filters import gaussian
-from pyTFM.plotting import show_quiver
-from angel_calculations import project_angle
 from scipy.ndimage.filters import uniform_filter
+import os
+import copy
+import numpy as np
+
+from skimage.draw import circle
+from scipy.signal import convolve2d
 
 
 def rotate_vector_field(p, r):
+    '''
+    rotation of a vector or vector field by angel p
+    :param p:
+    :param r:
+    :return:
+    '''
+
     r_n = np.zeros(r.shape) + np.nan
-    if len(r.shape) == 3: # vector field
-        r_n[:, :, 0] = + np.cos(p) * (r[:, :, 0]) - np.sin(p) * (r[:, :, 1])  # rotation # by aplying rotation matrix
+    if len(r.shape) == 3:  # vector field
+        # applying rotation matrix
+        r_n[:, :, 0] = + np.cos(p) * (r[:, :, 0]) - np.sin(p) * (r[:, :, 1])
         r_n[:, :, 1] = + np.sin(p) * (r[:, :, 0]) + np.cos(p) * (r[:, :, 1])
 
-    if len(r.shape) == 1: # single vector
-        r_n[0] = + np.cos(p) * (r[0]) - np.sin(p) * (r[1])  # rotation # by aplying rotation matrix
+    if len(r.shape) == 1:  # single vector
+        # applying rotation matrix
+        r_n[0] = + np.cos(p) * (r[0]) - np.sin(p) * (r[1])
         r_n[1] = + np.sin(p) * (r[0]) + np.cos(p) * (r[1])
-
-
     return r_n
 
 
 def eigen_vec(eval, a, b, d):
-    ## do i really not need a??
 
-    # eval must by 2d array
-    # eigenvector of symmetric (!) matrix [[a,b][c,d]]
-
+    '''
+    Calculateing the eigenvectors of a symmetric matrix [[a,b][b,c]] with eigenvalues eval
+    :param eval: 1d array of eigenvalues
+    :param a:
+    :param b:
+    :param d:
+    :return:
+    '''
     x = b / np.sqrt(b ** 2 + (eval - a) ** 2)
     y = (eval - a) / np.sqrt(b ** 2 + (eval - a) ** 2)
     return np.stack([x, y], axis=len(y.shape))
 
 
 def select_max_min(x1, x2, b1, b2):
-    # sort x1 and x2 into an array with smaller values
+
+    '''
+    Sort values from x1 and x2 into tqo arrays based on values in b1 and b2.
+    x1[0,0] get sorted to x_max if b1[0,0]>b2[0,0] and x2[0,0] gets sorted to x_min in this case.
+    :param x1:
+    :param x2:
+    :param b1:
+    :param b2:
+    :return:
+    '''
+
     x1 = np.array(x1)
     x2 = np.array(x2)
     b1 = np.array(b1)
@@ -44,7 +73,7 @@ def select_max_min(x1, x2, b1, b2):
     x_max = np.zeros(x1.shape)
     x_min = np.zeros(x2.shape)
 
-    bigger1 = np.abs(b1) > np.abs(b2)  # mask where absolute value of first eigenvalue is the bigger
+    bigger1 = np.abs(b1) > np.abs(b2)  # mask where absolute value of first value is bigger
     bigger2 = ~bigger1
 
     x_max[bigger1] = x1[bigger1]
@@ -56,81 +85,17 @@ def select_max_min(x1, x2, b1, b2):
     return x_max, x_min
 
 
-def gaussian_nan(arr, sigma):
-    ## based on https://stackoverflow.com/questions/18697532/gaussian-filtering-a-image-with-nan-in-python
-    ## nmight by probelmatic??
-
-    ##--> check out this weird effet arr=np.zeros((100,100)) +np.nan
-    # arr[50] =1
-    # arr[49]=0.5
-    # plt.figure();plt.imshow(arr),plt.colorbar()
-    # plt.figure();plt.imshow(gaussian_nan(arr, 1)),plt.colorbar()
-
-    V = arr.copy()
-    V[np.isnan(arr)] = 0
-    VV = gaussian(V, sigma=sigma)
-
-    W = 0 * arr.copy() + 1
-    W[np.isnan(arr)] = 0
-    WW = gaussian(W, sigma=sigma)
-
-    return VV / WW
-
-
-def get_orientation(vx, vy):
-    # calculates the angel of a vector with x component vx and y component vy in a range form 0 to np.pi
-    # so that angles of paralel vectors pointing in oposite directions are equal
-
-    o = np.arctan2(vy, vx)  # inverse xy!
-    # projects angle to range [0,2 pi]
-    # equivalent to max_orientation[<0] = 2*np.pi-max_orientation[<0]
-    o = o % (2 * np.pi)
-    # projecting angles to range of [0,pi]
-    o[o > np.pi] = o[o > np.pi] - np.pi
-    return o
-
-
-def produce_orientation_filter1(vx, vy):
-    ### very iteresitg result, but not quite what i ant......
-
-    # all paralel vectors in the same direction
-    # [-1,-1] gets converted to [1,1]
-    # vector length is retained
-    o = get_orientation(vx, vy)
-    # filtering: big problem: angles such as 0 and np.pi are "almost the same" for our purposes (orientation)
-    # strategy: calnulate the diffrence of the orientation to 90 degree line and filter
-    # apply spacial filter to this difference reapply the diffrence with corrcet sign
-    # amsk that defines if the angle diffrecne is positive or negative (i.e. left or right)
-    orient_diff = o - np.pi / 2
-    dif_sign = orient_diff > 0
-    orient_diff = np.abs(o - np.pi / 2)
-    orient_diff = gaussian(orient_diff, sigma=i)
-    no = np.zeros(o.shape)
-    no[dif_sign] = np.pi / 2 + orient_diff[dif_sign]
-    no[~dif_sign] = np.pi / 2 - orient_diff[~dif_sign]
-
-    abs_length = np.sqrt(vx ** 2 + vy ** 2)
-    nx = np.cos(no)
-    ny = np.sin(no)
-    # line paralell to y axis makes problems // must be some better solution
-    # nx[np.logical_and(nx==-1,ny==0)] = 1
-    nx *= abs_length
-    ny *= abs_length
-
-    ## filter the angle diffrence
-
-    return nx, ny
-
-
-
 def get_structure_tensor_gaussian(im, sigma):
-    # see wikipedia "structure tensor"
-    # structure_tenros =[[sum(W * grad_x * grad_ x), sum(W * grad_y * gra_x)],[sum(W * grad_y * grad_x), sum(W * grad_y * grad_Y)}}
-    # W: some kind of weighting function, most commonly gaussian, also defines window size for summation// must set sum to 1
-    # interpretation: analyzing the (absolute) the gradient in all direction --> high gradient means less coherence in any direction
-    #
+    '''
+    Structure tensor with gaussian weight. This how they typically do it.
+    See https://en.wikipedia.org/wiki/Structure_tensor for some background.
 
-    grad_y = np.gradient(im, axis=0)  # paramteres: spacing-> set higher dx and dy edge-order: some interpolation (?)
+    :param im: input image
+    :param sigma: sigma of the weighting functions, this effectively defines the size of the interrogation window
+    :return:
+    '''
+
+    grad_y = np.gradient(im, axis=0)  # parameters: spacing-> set higher dx and dy edge-order: some interpolation (?)
     grad_x = np.gradient(im, axis=1)
 
     # orientation tensor
@@ -141,40 +106,52 @@ def get_structure_tensor_gaussian(im, sigma):
     return ot_xx, ot_yx, ot_yy
 
 
-
-
-
 def get_structure_tensor_uniform(im, size):
-    # see wikipedia "structure tensor"
-    # structure_tenros =[[sum(W * grad_x * grad_ x), sum(W * grad_y * gra_x)],[sum(W * grad_y * grad_x), sum(W * grad_y * grad_Y)}}
-    # W: some kind of weighting function, most commonly gaussian, also defines window size for summation// must set sum to 1
-    # interpretation: analyzing the (absolute) the gradient in all direction --> high gradient means less coherence in any direction
-    #
+    '''
+    Structure tensor with uniform weight
+    See https://en.wikipedia.org/wiki/Structure_tensor for some background.
 
-    # size gives length of edge of filter window
 
-    grad_y = np.gradient(im, axis=0)  # paramteres: spacing-> set higher dx and dy edge-order: some interpolation (?)
+    :param im: input image
+    :param size: window size of the interrogation area
+    :return:
+    '''
+
+    grad_y = np.gradient(im, axis=0)
     grad_x = np.gradient(im, axis=1)
 
     # orientation tensor
-    ot_xx = uniform_filter(grad_x * grad_x, size=(size,size))
-    ot_yx = uniform_filter(grad_y * grad_x, size=(size,size))
-    ot_yy = uniform_filter(grad_y * grad_y, size=(size,size))
+    ot_xx = uniform_filter(grad_x * grad_x, size=(size, size))
+    ot_yx = uniform_filter(grad_y * grad_x, size=(size, size))
+    ot_yy = uniform_filter(grad_y * grad_y, size=(size, size))
 
     return ot_xx, ot_yx, ot_yy
 
 
 def get_structure_tensor_roi(im, mask=None):
-    # structure tensor over specific region of interest with uniform weight
+    '''
+    Structure tensor over specific region of interest with uniform weight.
+    See https://en.wikipedia.org/wiki/Structure_tensor for some background.
 
-    grad_y = np.gradient(im, axis=0)  # paramteres: spacing-> set higher dx and dy edge-order: some interpolation (?)
+
+    :param im: input image
+    :param mask: mask specifying the region that is analyzed
+    :return:
+    '''
+
+    #
+    grad_y = np.gradient(im, axis=0)  # parameters: spacing-> set higher dx and dy edge-order: some interpolation (?)
     grad_x = np.gradient(im, axis=1)
 
-    # orientation tensor
+    # if no mask is provided, use the whole image
     if not isinstance(mask, np.ndarray):
         mask = np.ones(grad_y.shape).astype(bool)
     else:
         mask = mask.astype(bool)
+
+    # components of the structure tensor.
+    # actual tensor would look like tensor = [[ot_xx], [ot_yx],
+    #                                  [ot_yx] ,[ot_yy]]
     ot_xx = np.mean(grad_x[mask] * grad_x[mask])
     ot_yx = np.mean(grad_y[mask] * grad_x[mask])
     ot_yy = np.mean(grad_y[mask] * grad_y[mask])
@@ -183,168 +160,264 @@ def get_structure_tensor_roi(im, mask=None):
 
 
 def get_principal_vectors(ot_xx, ot_yx, ot_yy):
-    # --> the same as min max principal stress // from https://www.soest.hawaii.edu/martel/Courses/GG303/Eigenvectors.pdf
+    '''
+    Calculating eigenvectors and eigenvalues form teh structure tensor, selecting the minimal and maximal eigenvalues
+    and the corresponding eigenvectors. from https://www.soest.hawaii.edu/martel/Courses/GG303/Eigenvectors.pdf
+    (maybe there is an error in the link?)
+    This follows
+    :param ot_xx: [0,0] component of structure tensor
+    :param ot_yx: [0,1] and [1,0] component of structure tensor
+    :param ot_yy: [1,1] component of structure tensor
+    :return:
+    '''
+
     eval1 = (ot_xx + ot_yy) / 2 + np.sqrt(((ot_xx - ot_yy) / 2) ** 2 + ot_yx ** 2)
     eval2 = (ot_xx + ot_yy) / 2 - np.sqrt(((ot_xx - ot_yy) / 2) ** 2 + ot_yx ** 2)
 
     evec1 = eigen_vec(eval1, ot_xx, ot_yx, ot_yy)
     evec2 = eigen_vec(eval2, ot_xx, ot_yx, ot_yy)
 
-    # we actally want the min eigenvalue and eigen vector
+    # we  want the minimal eigenvalue and eigenvector
     max_eval, min_eval = select_max_min(eval1, eval2, eval1, eval2)
     max_evec, min_evec = select_max_min(evec1, evec2, eval1, eval2)
 
     # sometimes minimal vector is not defined, in this case create min eigenvector perpendicular to max eigenvector
     min_not_defined = np.logical_and(np.isnan(min_evec), ~np.isnan(max_evec))
     min_evec[min_not_defined] = rotate_vector_field(np.pi / 2, max_evec)[min_not_defined]
-    # fill nans with zeros --> makes sense because later weighting with coherency would set zero  anyway// enabels (gauss) fitlering
+
+    # fill nans with zeros --> makes sense because later weighting with coherency would set zero  anyway
     min_evec[np.isnan(min_evec)] = 0
     max_evec[np.isnan(max_evec)] = 0
+
     return max_evec, min_evec, max_eval, min_eval
 
 
-if __name__ == "__main__":
-    test_vecs = np.zeros((10, 10))
+def analyze_area(im, mask):
+    '''
+    Orientation analysis on a specific area of an image.
+    :param im: Input image
+    :param mask: Mask to specify the analyzed area
+    :return: coherency,
+    max_evec, eigenvector of structure tensor with the large eigenvalue --> main orientation of the gradient field
+    min_evec, eigenvector of structure tensor with the smaller eigenvalue --> main orientation of image structure
+    max_eval, larger eigenvector
+    min_eval, smaller eigenvector
+    '''
 
-    center = np.array([test_vecs.shape[0], test_vecs.shape[1]]) / 2
-    r_vecs = np.meshgrid(np.arange(test_vecs.shape[0]), np.arange(test_vecs.shape[1]), indexing="xy")
-    rv_x, rv_y = [r_vecs[1].T - center[1], r_vecs[0].T - center[0]]
-
-
-    def find_main_oientation(vx, vy):
-        # finds the maximum of sum(abs(r*o)), r: vector indicating local orientation (length of this vector will act like
-        # no easy maximization posible??
-
-        ox = np.sum(vy) / np.sum(vx)
-        oy = np.sqrt(1 - ox ** 2)
-
-
-    def get_main_orientation(ox, vx, vy):
-        oy = np.sqrt(1 - ox ** 2)  # o is vector og length 1
-        ori = np.sum(np.abs(ox * vx + oy * vy))
-        return ori
-
-
-    def get_main_orientation_min(ang, vx=0, vy=0):
-        ox = np.cos(ang)
-        oy = np.sin(ang)
-
-        # scalar product with vector perpendicular to orienationvector needs to be minimized
-        ori = np.sum(np.abs(ox * vx + oy * vy))
-        return ori
-
-
-    def get_main_orientation_min_squared(ang, vx=0, vy=0):
-        ox = np.cos(ang)
-        oy = np.sin(ang)
-        # scalar product with vector perpendicular to orienationvector needs to be minimized
-        ori = np.sum((ox * vx + oy * vy)**2)
-        return ori
-
-
-    ### there is no single minimum/maximum !!!
-
-    vx = np.random.uniform(-1, 1, (10, 10))
-    vy = np.random.uniform(-1, 1, (10, 10))
-    vx = np.zeros((10,10)) +1
-    vy = np.zeros((10,10)) -1
-
-
-    im = 1 - np.mean(plt.imread( "/home/user/Desktop/fibre_orientation_test/2.jpg"), axis=2)
-    vy = np.gradient(im, axis=0)  # paramteres: spacing-> set higher dx and dy edge-order: some interpolation (?)
-    vx = np.gradient(im, axis=1)
-
-    # structure tensor like tensor
-    ot_xx = np.sum(vx * vx)
-    ot_yx = np.sum(vy * vx)
-    ot_yy = np.sum(vy * vy)
-
-    eval1 = (ot_xx + ot_yy) / 2 + np.sqrt(((ot_xx - ot_yy) / 2) ** 2 + ot_yx ** 2)
-    eval2 = (ot_xx + ot_yy) / 2 - np.sqrt(((ot_xx - ot_yy) / 2) ** 2 + ot_yx ** 2)
-
-    evec1 = eigen_vec(eval1, ot_xx, ot_yx, ot_yy)
-    evec2 = eigen_vec(eval2, ot_xx, ot_yx, ot_yy)
-    fig, ax = show_quiver(vx, vy, filter=[0,5])
-    ax.arrow(vx.shape[1]/2, vx.shape[0]/2, evec1[0]*vx.shape[0]/4, evec1[1]*vx.shape[0]/4, color="green", head_width=0.2, width=0.1)
-    ax.arrow(vx.shape[1]/2, vx.shape[0]/2, evec2[0]*vx.shape[0]/4, evec2[1]*vx.shape[0]/4, color="green", head_width=0.2, width=0.1)
-
-    from scipy.optimize import minimize, basinhopping
-    from tqdm import tqdm
-
-    res_x = []
-    res_y = []
-    for i in tqdm(np.linspace(0, np.pi, 100)):
-        res = minimize(get_main_orientation_min, x0=i, args=(vx, vy),
-                       method="Nelder-Mead")  # this isused for non linear problems??- guess not
-        res_x.append(res["x"])
-        res_y.append(res["fun"])
-    min_x = res_x[np.argmin(res_y)]
-    min_y = res_y[np.argmin(res_y)]
-
-    ra = np.linspace(0, np.pi, 1000)
-    ol1 = []
-    for i in ra:
-        ol1.append(get_main_orientation_min(i, vx, vy))
-    ol1 = np.array(ol1)/ np.max(ol1)
-    ol2 = []
-    for i in ra:
-        ol2.append(get_main_orientation_min_squared(i, vx, vy))
-    ol2 = np.array(ol2) / np.max(ol2)
-    plt.figure();
-    plt.plot(ra, ol1)
-    plt.plot(ra, ol2, color="orange")
-
-
-    plt.vlines(min_x, np.min(ol1), np.max(ol1), color="blue")
-    plt.vlines(ra[np.argmin(ol2)], np.min(ol1), np.max(ol1), color="orange")
-    ea1 = np.arccos(evec1[0]/np.linalg.norm(evec1))
-    ea2 = np.arccos(evec2[0]/np.linalg.norm(evec2))
-    eamax = ea1 if eval1 > eval2 else ea2
-    eamin = eamax + np.pi/2 if eamax < np.pi-np.pi/2 else eamax - np.pi/2
-
-    plt.vlines( eamax, np.min(ol1), np.max(ol1), color="green")
-    plt.vlines( eamin, np.min(ol1), np.max(ol1), color="green")
-
-
-
-
-
-
-
-
-
-    f, a = show_quiver(rv_x, rv_y, scale_ratio=0.1, filter=[0, 1], alpha=0)
-    im = a.imshow(get_orientation(rv_x, rv_y),
-                  alpha=1)  # cmap="hsv""cyclic colrmap for representation is very importatn
-    plt.colorbar(im)
-
-    # f, a = show_quiver(rv_re_x, rv_re_y, scale_ratio=0.1, filter=[0, 1], alpha=0)
-    # im = a.imshow(get_orientation(rv_re_x, rv_re_y),
-    #              alpha=1)  # cmap="hsv""cyclic colrmap for representation is very importatn
-    # plt.colorbar(im)
-
-    image = "/home/user/Desktop/fibre_orientation_test/pure_grid-0.png"
-    # image = "/home/user/Desktop/fibre_orientation_test/pure_grid-1.png"
-    # image = "/home/user/Desktop/fibre_orientation_test/6.jpg"
-    im = plt.imread(image)
-    arr = im
-    # arr = normalizing(np.mean(im,axis=2))
-    # arr = 1-normalizing(np.mean(im,axis=2))
-
-    # arr = np.zeros((100,100))
-    # arr[50] = 1
-
-    # structure_tenros =[[sum(W * grad_x * grad_ x), sum(W * grad_y * gra_x)],[sum(W * grad_y * grad_x), sum(W * grad_y * grad_Y)}}
-    # W: some kind of weighting function, most commonly gaussian, also defines window size for summation// must set sum to 1
-    # interpretation: analyzing the (absolute) the gradient in all direction --> high gradient means less coherence in any direction
-    #
-
-    ot_xx, ot_yx, ot_yy = get_structure_tensor(arr, sigma=4)
+    # calculating the structure tensor
+    mask = mask.astype(bool)
+    ot_xx, ot_yx, ot_yy = get_structure_tensor_roi(im, mask=mask)
+    # getting vectors for minimal and maximal orientation
     max_evec, min_evec, max_eval, min_eval = get_principal_vectors(ot_xx, ot_yx, ot_yy)
-    proj_orientation = get_orientation(min_evec[:, :, 0], min_evec[:, :, 1])
 
-    coherency = (np.abs(max_eval) - np.abs(min_eval)) / (np.abs(max_eval) + np.abs(min_eval))
+    coherency = (max_eval - min_eval) / (max_eval + min_eval)
 
-# todo: fix orietnation of vectors--> project angles//
-# todo: play aorunf with sigma
-# todo: think about weightin with image intensity and or thresholding/filtering of raw image
+    return coherency, max_evec, min_evec, max_eval, min_eval
+
+
+def get_main_orientation_squared(ang, vx=0, vy=0):
+    # components of the orientation vector. length of this vector is always 1
+    ox = np.cos(ang)
+    oy = np.sin(ang)
+    ori = np.sum((ox * vx + oy * vy) ** 2)
+    # also interesting is the sum of absolute values :
+    # np.sum(np.sqrt((ox * vx + oy * vy)**2))
+
+    return ori
+
+
+'''
+def custom_edge_filter(arr):
+    arr_out = copy.deepcopy(arr).astype(int)
+    shape1 = np.array([[0, 1, 0], [1, 1, 0], [0, 0, 0]])
+    shape2 = np.array([[0, 1, 0], [0, 1, 1], [0, 0, 0]])
+    shape3 = np.array([[0, 0, 0], [0, 1, 1], [0, 1, 0]])
+    shape4 = np.array([[0, 0, 0], [1, 1, 0], [0, 1, 0]])
+    for s in [shape1, shape2, shape3, shape4]:
+        rem_mask = convolve2d(arr, s, mode="same") == 3
+        arr_out[rem_mask] = 0
+    return arr_out.astype(bool)
+'''
+
+
+def set_axis_attribute(ax, attribute, value):
+    for p in ["left", "bottom", "right", "top"]:
+        if hasattr(ax.spines[p], attribute):
+            try:
+                getattr(ax.spines[p], attribute)(value)  # this calls method
+            except:
+                setattr(ax.spines[p], attribute, value)
+        else:
+            raise AttributeError("Spines object has no attribute " + attribute)
+
+
+'''
+def display_mask(fig, mask, display_type="outline", type=1, color="C1", d=np.sqrt(2), ax=None, dm=True, lw=9):
+    if not dm:
+        return
+    mask = mask.astype(int)
+    if display_type == "outline":
+
+        bm = binary_erosion((mask))
+        bm[0,:] = 0
+        bm[:,0] = 0
+        bm[-1,:] = 0
+        bm[:,-1] = 0
+        out_line = mask - bm
+        out_line = custom_edge_filter(out_line)  # risky
+        out_line_graph, points = mask_to_graph(out_line, d=d)
+        try:
+            circular_path = find_path_circular(out_line_graph, 0)
+        except RecursionError as e:
+            print("while plotting mask outlines:", e)
+            return
+
+        circular_path.append(circular_path[0])  # to plot a fully closed loop
+        if type == 1:
+            ax = fig.axes[0] if ax is None else ax
+            ax.plot(points[circular_path][:, 1], points[circular_path][:, 0], "--", color=color, linewidth=lw)
+        if type == 2:
+            for ax in fig.axes:
+                ax.plot(points[circular_path][:, 1], points[circular_path][:, 0], "--", color=color, linewidth=lw)
+
+'''
+
+
+def plot1(im, im_f, sigma, ori_res, mask=None, out_folder=None, name="im.png"):
+    max_evec, min_evec, max_eval, min_eval, ori = ori_res
+    circle(r=50, c=im.shape[1] - 50, radius=sigma, shape=im.shape)
+    circ = np.zeros(im.shape) + np.nan
+    circ[circle(r=50, c=im.shape[1] - 50, radius=sigma, shape=im.shape)] = 1
+    grady = np.gradient(im_f, axis=0)
+    gradx = np.gradient(im_f, axis=1)
+    vmin = np.min(np.stack([grady ** 2, gradx ** 2]))
+    vmax = np.max(np.stack([grady ** 2, gradx ** 2]))
+
+    fig, axs = plt.subplots(1, 4)
+    axs[0].imshow(im)
+    axs[0].imshow(circ, cmap="spring", vmin=0, vmax=1)
+    f = max_eval / max_eval * np.min(im.shape) * 0.35
+    axs[0].arrow(im.shape[1] / 2, im.shape[0] / 2, max_evec[0] * f, max_evec[1] * f, width=10,
+                 color="C3")
+    f = min_eval / max_eval * np.min(im.shape) * 0.35
+    axs[0].arrow(im.shape[1] / 2, im.shape[0] / 2, min_evec[0] * f, min_evec[1] * f, width=10,
+                 color="C6")
+    # if isinstance(mask, np.ndarray):
+    #  display_mask(fig, mask, ax=axs[0],lw=3)
+
+    axs[1].imshow(im_f)
+    axs[1].set_title("blurred image")
+    axs[2].imshow(grady ** 2, vmin=vmin, vmax=vmax)
+    axs[2].set_title("y gradient")
+    im_disp = axs[3].imshow(gradx ** 2, vmin=vmin, vmax=vmax)
+    axs[3].set_title("x gradient")
+    plt.text(0.5, -500, "ori = " + str(np.round(ori, 3)))  ##
+
+    for ax in axs:
+        set_axis_attribute(ax, "set_visible", False)
+        ax.tick_params(axis="both", tick1On=False, tick2On=False, label1On=False, label2On=False)
+
+    cax = fig.add_axes([0.3, 0.1, 0.6, 0.05])
+
+    plt.colorbar(im_disp, cax=cax, orientation="horizontal")
+    if isinstance(out_folder, str):
+        fig.savefig(os.path.join(out_folder, name))
+    return fig
+
+
+def full_angle_plot(ori_list, angs, out_folder=None, name="orient_dist.png"):
+    fig = plt.figure()
+    ax = plt.subplot(111, projection="polar")
+    ax.plot(angs, ori_list)
+    if isinstance(name, str) and isinstance(out_folder, str):
+        fig.savefig(os.path.join(out_folder, name))
+    return fig
+
+
+def analyze_area_full_orientation(im, mask=None, points=1000, length=2 * np.pi):
+    '''
+    Calculates the alignment of the gradient field of an image with an orientation lines over a specified range of angles.
+    Alignment = sum(grad*or), where grad is the gradient vector field, or is an orientation vector and * is
+    the scalar product
+
+    :param im: input image
+    :param mask: mask specifying a region to be analyzed in the image
+    :param points: number of sample points
+    :param length: range of angles, keep at 2*np.pi for normal plot
+    :return:
+    '''
+
+    grad_y = np.gradient(im, axis=0)  # parameters: spacing-> set higher dx and dy edge-order: some interpolation (?)
+    grad_x = np.gradient(im, axis=1)
+
+    # orientation tensor
+    if not isinstance(mask, np.ndarray):
+        mask = np.ones(grad_y.shape).astype(bool)
+    else:
+        mask = mask.astype(bool)
+    oris = []
+    angs = np.linspace(0, length, points)
+    for ang in angs:
+        oris.append(get_main_orientation_squared(ang, vx=grad_x[mask], vy=grad_y[mask]))
+    oris = np.array(oris)
+    return oris, angs
+
+
+def normalize(image, lb=0.1, ub=99.9):
+    '''
+    normalizes image to  a range from 0 and 1 and cuts of extreme values
+    e.g. lower then 0.1 percentile and higher then 99.9m percentile
+
+    :param image:
+    :param lb: percentile of lower bound for filter
+    :param ub: percentile of upper bound for filter
+    :return:
+    '''
+
+    image = image - np.percentile(image, lb)  # 1 Percentile
+    image = image / np.percentile(image, ub)  # norm to 99 Percentile
+    image[image < 0] = 0.0
+    image[image > 1] = 1.0
+    return image
+
+
+if __name__ == "__main__":
+    # reading an image
+    # use r"path\path\file.png" on windows
+    im = plt.imread("/home/user/Desktop/ingo_fiber_orientations/7500_17022020/MAX_7500_17022020.lif - Series002.tif")[:,
+         :, 0]
+
+    # standard deviation of gaussian filter used for blurring
+    # needs to remove all structures smaller the the structure we want to analyze
+    sigma = 5
+
+    # "contrast spreading" by setting all values below norm1-percentile to zero and
+    # all values above norm2-percentile to 1
+    norm1 = 5
+    norm2 = 95
+    # maybe change to full binarization
+    # with np.median()
+    # or maybe:
+    # from skimage.filters import threshold_otsu
+    #  threshold_otsu
+
+    # applying normalizing/ contrast spreading
+    im_n = normalize(im, norm1, norm2)
+    # applying gaussian filter
+    im_f = gaussian(im_n, sigma=sigma)
+
+    # specifying an area for the analysis, this code selects the whole image
+    mask = np.ones(im.shape).astype(bool)
+
+    # orientation analysis
+    coherence, max_evec, min_evec, max_eval, min_eval = analyze_area(im_f, mask)
+
+    # full oriention distribution, by sampling orientations from 0 to 2*np.pi
+    ori_list, angs = analyze_area_full_orientation(im_f, mask, points=100, length=np.pi * 2)
+
+    # plot of blurred image and gradients
+    fig1 = plot1(im, im_f, sigma, [max_evec, min_evec, max_eval, min_eval, coherence], mask)
+
+    # plot of orientation distribution
+    fig2 = full_angle_plot(ori_list, angs)
+    # save by fig2.savefig("example.png")
