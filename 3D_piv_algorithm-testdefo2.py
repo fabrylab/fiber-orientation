@@ -84,9 +84,7 @@ def plot_3_D_alpha(data):
     ax.set_zlabel("z")
     plt.show()
 
-search_area_size = (3,3,3)
-window_size = (5,5,5)
-warn=True
+
 def check_search_area_size(search_area_size, window_size, warn=True):
     # dsiplacement between window and searcharea can only be uniquely defined if window_size + searcharea_size is an even number
     # this warns, and corrects search_area_size if this is not the case
@@ -103,6 +101,20 @@ def check_search_area_size(search_area_size, window_size, warn=True):
             search_area_size_corrected.append(search_area_size[i])
 
     return search_area_size_corrected
+
+
+def simple_defo(x, y):
+    f = correlate(x, y, mode="full", method="fft")
+    min_pos = np.unravel_index(np.argmax(f), f.shape)
+    corr_center = (np.array(f.shape) - 1) / 2
+    defo = []
+    if len(min_pos) > 0:
+        defo.append(corr_center[0] - min_pos[0])
+    if len(min_pos) > 1:
+        defo.append(corr_center[1] - min_pos[1])  #
+    if len(min_pos) > 2:
+        defo.append(corr_center[2] - min_pos[2])
+    return defo
 
 
 def extended_search_area_piv3D(frame_a,
@@ -169,34 +181,6 @@ def extended_search_area_piv3D(frame_a,
 
                 search_area = frame_b[r1[0]:r1[1], r2[0]:r2[1], r3[0]:r3[1]]
 
-                #grid = np.meshgrid(np.arange(r1[0],r1[1]), np.arange(r2[0],r2[1]), np.arange(r3[0],r3[1]))
-                #plot_3_D(grid, search_area)
-
-
-
-             # ############################## testing code
-             #    search_area = np.zeros((3,3,3))
-             #    window_a = np.zeros((5,5,5))
-             #    window_a[1,1,1] = 1
-             #    search_area[1,1,2] = 1
-             #    plot_3_D_alpha(search_area)
-             #    plot_3_D_alpha(window_a)
-
-             #    #simple_defo(search_area, window_a)
-
-
-                def simple_defo(x, y):
-                     f = correlate(x, y, mode="full", method="fft")
-                     min_pos = np.unravel_index(np.argmax(f), f.shape)
-                     corr_center = (np.array(f.shape) - 1)/2
-                     defo = []
-                     if len(min_pos) > 0:
-                         defo.append(corr_center[0] - min_pos[0])
-                     if len(min_pos) > 1:
-                         defo.append(corr_center[1] - min_pos[1])#
-                     if len(min_pos) > 2:
-                         defo.append(corr_center[2] - min_pos[2])
-                     return defo
 
                 
 
@@ -204,10 +188,9 @@ def extended_search_area_piv3D(frame_a,
                 ##############################
                 # compute correlation map
                 if (np.sum(window_a!=0)>0) and (np.sum(search_area!=0)>0) :
-            
-                
-                    corr = correlate(search_area, window_a, method="fft", mode="full") # measure time and compare
-                    # corr = correlate_windows3D(search_area, window_a, nfftx=nfftx, nffty=nffty)
+                    # normalizing_intensity simply substratcs the mean
+                    corr = correlate(normalize_intensity(search_area), normalize_intensity(window_a), method="fft", mode="full") # measure time and compare
+                    # corr = correlate_windows3D(search_area, window_a,( nfftx=nfftx, nffty=nffty)
                     c = CorrelationFunction3D(corr)
     
                     # find subpixel approximation of the peak center
@@ -218,25 +201,12 @@ def extended_search_area_piv3D(frame_a,
                     v[I, J, Z] = (corr_center[0] - i_peak)/ dt
                     u[I, J, Z] = (corr_center[1]- j_peak)/ dt
                     w[I, J, Z] = (corr_center[2] - z_peak)/ dt
-                    ########
-                    print (np.nanmax(u),np.nanmax(v),np.nanmax(w))
-                    # compute signal to noise ratio
+
                     if sig2noise_method:
                         sig2noise[I, J, Z] = c.sig2noise_ratio(sig2noise_method, width)
-                    print(search_area.shape)
-                    print(window_a.shape) 
-                    print(sig2noise[I, J, Z]) 
-                    plot_3_D_alpha(window_a)
-                    plot_3_D_alpha(search_area)
-                    plot_3_D_alpha(corr)
-                    print (u[I, J, Z])
-                    print (v[I, J, Z])
-                    print (w[I, J, Z])
-                    die
-                        # compute signal to noise ratio
-                    # if sig2noise_method:
-                    #     sig2noise[I, J] = np.inf
-
+                #plot_3_D_alpha(corr)
+                #plot_3_D_alpha(window_a)
+                #plot_3_D_alpha(search_area)
 
 
     if sig2noise_method:
@@ -453,95 +423,6 @@ class CorrelationFunction3D():
 
         return sig2noise
 
-def extended_search_area_piv2D(frame_a,
-                             frame_b,
-                             window_size,
-                             overlap,
-                             dt,
-                             search_area_size,
-                             subpixel_method='gaussian',
-                             sig2noise_method=None,
-                             width=2,
-                             nfftx=None,
-                             nffty=None):
-
-
-    # get field shape
-    n_rows, n_cols = get_field_shape((frame_a.shape[0], frame_a.shape[1]), window_size, overlap)
-
-    #    # define arrays
-    window_a = np.zeros([window_size, window_size], dtype=DTYPEi)
-    search_area = np.zeros([search_area_size, search_area_size], dtype=DTYPEi)
-    corr = np.zeros([search_area_size, search_area_size], dtype=DTYPEf)
-    u = np.zeros([n_rows, n_cols], dtype=DTYPEf)
-    v = np.zeros([n_rows, n_cols], dtype=DTYPEf)
-    sig2noise = np.zeros([n_rows, n_cols], dtype=DTYPEf)
-
-    # loop over the interrogation windows
-    # i, j are the row, column indices of the top left corner
-    I = 0
-    for i in range(0, frame_a.shape[0] - window_size, window_size - overlap):
-        J = 0
-        for j in range(0, frame_a.shape[1] - window_size, window_size - overlap):
-
-            # get interrogation window matrix from frame a
-            for k in range(window_size):
-                for l in range(window_size):
-                    window_a[k, l] = frame_a[i + k, j + l]
-
-            # get search area using frame b
-            for k in range(search_area_size):
-                for l in range(search_area_size):
-
-                    # fill with zeros if we are out of the borders
-                    if i + window_size / 2 - search_area_size / 2 + k < 0 or i + window_size / 2 - search_area_size / 2 + k >= \
-                            frame_b.shape[0]:
-                        search_area[k, l] = 0
-                    elif j + window_size / 2 - search_area_size / 2 + l < 0 or j + window_size / 2 - search_area_size / 2 + l >= \
-                            frame_b.shape[1]:
-                        search_area[k, l] = 0
-                    else:
-                        search_area[k, l] = frame_b[
-                            int(i + window_size / 2 - search_area_size / 2 + k), int(j + window_size / 2 - search_area_size / 2 + l)]
-
-            imshow(window_a, cmap=cm.gray)
-            show()
-            imshow(search_area, cmap=cm.gray)
-            show()
-
-            # compute correlation map
-            if any(window_a.flatten()):
-                corr = correlate_windows(search_area, window_a, nfftx=nfftx, nffty=nffty)
-                c = CorrelationFunction(corr)
-
-                # find subpixel approximation of the peak center
-                i_peak, j_peak = c.subpixel_peak_position(subpixel_method)
-
-                # velocities
-                v[I, J] = -((i_peak - corr.shape[0] / 2) - (search_area_size - window_size) / 2) / dt
-                u[I, J] = ((j_peak - corr.shape[0] / 2) - (search_area_size - window_size) / 2) / dt
-
-                # compute signal to noise ratio
-                if sig2noise_method:
-                    sig2noise[I, J] = c.sig2noise_ratio(sig2noise_method, width)
-            else:
-                v[I, J] = 0.0
-                u[I, J] = 0.0
-                # compute signal to noise ratio
-                if sig2noise_method:
-                    sig2noise[I, J] = np.inf
-
-            # go to next vector
-            J = J + 1
-
-        # go to next vector
-        I = I + 1
-
-    if sig2noise_method:
-        return u, v, sig2noise
-    else:
-        return u, v
-
 """
 load stacks
 """
@@ -620,9 +501,29 @@ sphere2[5,5,3:8] = 1
 
 
 # 3d piv
+#  test cube defo
+sphere1 = np.zeros((10,10,10))
+sphere1[5,5,5:6] = 1
 
-window_size = (2,2,2)
-overlap = 1#11
+sphere2 =  np.zeros((10,10,10))
+sphere2[5,5,5:7] = 1
+
+
+
+center = (8, 8, 8)
+size = (16, 16, 16)
+distance = np.linalg.norm(np.subtract(np.indices(size).T,np.asarray(center)), axis=len(center))
+sphere1 = np.ones(size) * (distance<=4)
+
+
+center = (8, 8, 8)
+size = (16, 16, 16)
+distance = np.linalg.norm(np.subtract(np.indices(size).T,np.asarray(center)), axis=len(center))
+sphere2 = np.ones(size) * (distance<=5)
+
+
+window_size = (5,5,5)
+overlap = 4#11
 search_area = (5,5,5)
 
 n_rows, n_cols, n_z = get_field_shape3d(sphere1.shape, window_size, overlap)
@@ -635,59 +536,16 @@ u, v, w, sig2noise = extended_search_area_piv3D(sphere1, sphere2, window_size, o
                              nffty=None)
 
 
-np.save(os.path.join(out_folder,"u.npy"), u)
-np.save(os.path.join(out_folder,"v.npy"), v)
-np.save(os.path.join(out_folder,"w.npy"), w)
-np.save(os.path.join(out_folder,"sig_noise.npy"), sig2noise)
+#np.save(os.path.join(out_folder,"u.npy"), u)
+#np.save(os.path.join(out_folder,"v.npy"), v)
+#np.save(os.path.join(out_folder,"w.npy"), w)
+#np.save(os.path.join(out_folder,"sig_noise.npy"), sig2noise)
 
 
 
 
 
-# visualize signal to noise ratio
-# fig =plt.figure(figsize=(6,6))
-# ax = fig.gca(projection='3d')
 
-# col = np.zeros((sig2noise.shape[0],sig2noise.shape[0],sig2noise.shape[0], 4))
-
-# signoise_fil = sig2noise.copy()
-# signoise_fil[(sig2noise==Inf)] = np.nanmax(sig2noise[~(sig2noise==Inf)])
-# signoise_fil = signoise_fil/np.nanmax(signoise_fil)
-# signoise_fil[np.isnan(signoise_fil)] = 0
-
-# col[:,:,:,2] = 1
-# col[:,:,:,3] = signoise_fil
-
-# ax.voxels(sig2noise, facecolors=col  ,alpha=0.4)
-
-# plt.show()
-
-
-
-
-"""
-3d piv stacks
-"""
-
-# window_size = (11,11,11)
-# overlap = 0  #11                # piv issue even-odd numbers.. ?
-# search_area = (31,31,31)
-
-
-# n_rows, n_cols, n_z = get_field_shape3d(stack1.shape, window_size, overlap)
-# print("needs %s iterations"%str(n_rows))
-
-# u, v, w, sig2noise = extended_search_area_piv3D(stack1, stack2, window_size, overlap, 1, search_area, subpixel_method='gaussian',
-#                              sig2noise_method='peak2peak',
-#                              width=2,
-#                              nfftx=None,
-#                              nffty=None)
-
-
-# np.save(os.path.join(out_folder,"u.npy"), u)
-# np.save(os.path.join(out_folder,"v.npy"), v)
-# np.save(os.path.join(out_folder,"w.npy"), w)
-# np.save(os.path.join(out_folder,"sig_noise.npy"), sig2noise)
 
 """
 visualize results
@@ -696,46 +554,71 @@ visualize results
 # # add color
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib
-fig = plt.figure()
-ax = fig.gca(projection='3d', rasterized=True)
+from itertools import chain
 # make grid
-x_ = np.arange(0., n_rows,1)
-y_ = np.arange(0., n_cols,1)
-z_ = np.arange(0., n_z,1)
-x, y, z = np.meshgrid(x_, y_, z_, indexing='ij')
+x, y, z = np.indices(u.shape)
+distance = np.sqrt(x**2+y**2+z**2)
+deformation = np.sqrt(u**2+v**2+w**2)
+
+#cbound=[0,10]
 #filter defos - or use 0 100
 mask_filtered = (np.sqrt(u**2+v**2+w**2)>=np.nanpercentile(np.sqrt(u**2+v**2+w**2),0)) &(np.sqrt(u**2+v**2+w**2)<=np.nanpercentile(np.sqrt(u**2+v**2+w**2),100))
+mask_filtered = deformation>0.5
+mask_filtered = np.ones(x.shape).astype(bool)
+
+offset = np.random.uniform(0,0.2,x[mask_filtered].shape)
+xf = x[mask_filtered]
+yf = y[mask_filtered]
+zf = z[mask_filtered]
+uf = u[mask_filtered]
+vf = v[mask_filtered]
+wf = w[mask_filtered]
+df = deformation[mask_filtered]
+
 # make cmap
-distance =np.sqrt(x**2+y**2+z**2)
-deformation = np.sqrt(u**2+v**2+w**2)[mask_filtered]
-#cbound=[0,10]
-cbound=[0,np.max(deformation)]
+cbound=[0, np.nanmax(df)]
 # create normalized color map for arrows
 norm = matplotlib.colors.Normalize(vmin=cbound[0],vmax=cbound[1])
-cm = matplotlib.cm.jet
-sm = matplotlib.cm.ScalarMappable(cmap=cm, norm=norm)
+sm = matplotlib.cm.ScalarMappable(cmap="jet", norm=norm)
 sm.set_array([])
 # different option
 #colors = sm.to_rgba(np.ravel(deformation))
-colors = matplotlib.cm.jet( np.ravel((deformation-cbound[0])/(cbound[1]-cbound[0]) )) #
+colors = matplotlib.cm.jet(norm(df)) #
 # plot the data
-quiver_filtered = ax.quiver(x[mask_filtered], y[mask_filtered], z[mask_filtered], u[mask_filtered], v[mask_filtered], w[mask_filtered]  ,
-                          normalize=False ,alpha=0.7,  pivot='tip',color=colors)#      cmap=cm, norm=norm      )  # c ,length=1.3, arrow_length_ratio=1,  linewidth=0.5
+#colors[deformation==1.5]=np.array([1,1,1,1])
 
-#quiver_filtered = ax.quiver([10,12], [10,12], [10,12], [],0,5, normalize=True ,alpha=0.7,  pivot='tip',color = matplotlib.cm.jet(40/40)  )#      cmap=cm, norm=norm      )  # c ,length=1.3, arrow_length_ratio=1,  linewidth=0.5
+colors = [c for c,d in zip(colors, df) if d > 0] + list(chain(*[[c, c] for c,d in zip(colors, df) if d > 0]))
+# colors in ax.quiver 3d is really fucked up/ will probabaly change with updates:
+# requires list with: first len(u) entries define the colors of the shaft, then the next len(u)*2 entries define
+# the color of alternating left and right arrow head side. Try for example:
+# colors = ["red" for i in range(len(cf))] + list(chain(*[["blue", "yellow"] for i in range(len(cf))]))
+# to see this effect
+# BUT WAIT THERS MORE: zeor length arrows are apparently filtered out in the matplolib with out filtering the color list appropriately
+# so we have to do this our selfes as well
 
 
-ax.w_xaxis.set_pane_color((0.2, 0.2, 0.2, 1.0))
-ax.w_yaxis.set_pane_color((0.2, 0.2, 0.2, 1.0))
-ax.w_zaxis.set_pane_color((0.2, 0.2, 0.2, 1.0))
+
+fig = plt.figure()
+ax = fig.gca(projection='3d', rasterized=True)
+
+quiver_filtered = ax.quiver(xf, yf, zf, uf, vf, wf ,
+                          colors=colors, normalize=False)
 plt.colorbar(sm)
-print(u.min(), v.min(), w.min())
-print(u.max(), v.max(), w.max())
-print(deformation.max())
-
 ax.set_xlim(x.min(),x.max())
 ax.set_ylim(y.min(),y.max())
 ax.set_zlim(z.min(),z.max())
 ax.set_xlabel("x")
 ax.set_ylabel("y")
 ax.set_zlabel("z")
+
+plot_3_D_alpha(sphere1)
+
+plot_3_D_alpha(sphere2)
+
+s2=sig2noise.copy()
+s2[sig2noise==1]=0
+plot_3_D_alpha(s2)
+
+
+
+
