@@ -123,6 +123,7 @@ def extended_search_area_piv3D(frame_a,
                              overlap,
                              dt,
                              search_area_size,
+                             drift_correction=False,
                              subpixel_method='gaussian',
                              sig2noise_method=None,
                              width=2,
@@ -208,6 +209,11 @@ def extended_search_area_piv3D(frame_a,
                 #plot_3_D_alpha(window_a)
                 #plot_3_D_alpha(search_area)
 
+    if drift_correction:
+           # drift correction
+           u= u - np.mean(u)
+           v= v - np.mean(v)
+           w= w - np.mean(w)
 
     if sig2noise_method:
         return u, v, w, sig2noise
@@ -602,7 +608,7 @@ fig = plt.figure()
 ax = fig.gca(projection='3d', rasterized=True)
 
 quiver_filtered = ax.quiver(xf, yf, zf, uf, vf, wf ,
-                          colors=colors, normalize=False)
+                          colors=colors,  normalize=True, alpha =0.9, arrow_length_ratio=0,  pivot='tip', linewidth=0.5)
 plt.colorbar(sm)
 ax.set_xlim(x.min(),x.max())
 ax.set_ylim(y.min(),y.max())
@@ -610,14 +616,16 @@ ax.set_zlim(z.min(),z.max())
 ax.set_xlabel("x")
 ax.set_ylabel("y")
 ax.set_zlabel("z")
+ax.w_xaxis.set_pane_color((0.2, 0.2, 0.2, 1.0))
+ax.w_yaxis.set_pane_color((0.2, 0.2, 0.2, 1.0))
+ax.w_zaxis.set_pane_color((0.2, 0.2, 0.2, 1.0))
 
-plot_3_D_alpha(sphere1)
-
-plot_3_D_alpha(sphere2)
+#plot_3_D_alpha(sphere1)
+#plot_3_D_alpha(sphere2)
 
 s2=sig2noise.copy()
 s2[sig2noise==1]=0
-plot_3_D_alpha(s2)
+#plot_3_D_alpha(s2)
 
 
 
