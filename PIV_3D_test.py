@@ -6,9 +6,9 @@ from PIV_3D_main import *
 
 
 # # windowsize for stacks
-window_size = (30,30,30)
-overlap =15  #25   #11
-search_area = (60,60,60)
+window_size = (2,2,2)
+overlap =0#25   #11
+search_area = (5,5,5)
 
 
 
@@ -51,11 +51,11 @@ if not os.path.exists(out_folder):
     os.makedirs(out_folder)
 
 #  test single defo
-# sphere1 = np.zeros((10,10,10))
-# sphere1[4,4,1] = 1
+sphere1 = np.zeros((10,10,10))
+sphere1[4,4,1] = 1
 
-# sphere2 =  np.zeros((10,10,10))
-# sphere2[4,3,2] = 1
+sphere2 =  np.zeros((10,10,10))
+sphere2[4,3,2] = 1
 
 #  test cube defo
 # sphere1 = np.zeros((10,10,10))
@@ -66,15 +66,15 @@ if not os.path.exists(out_folder):
 
 
 # test sphere defo
-center = (50, 50, 50)
-size = (100, 100, 100)
-distance = np.linalg.norm(np.subtract(np.indices(size).T,np.asarray(center)), axis=len(center))
-sphere1 = np.ones(size) * (distance<=30)
+# center = (50, 50, 50)
+# size = (100, 100, 100)
+# distance = np.linalg.norm(np.subtract(np.indices(size).T,np.asarray(center)), axis=len(center))
+# sphere1 = np.ones(size) * (distance<=16)
 
-center = (50, 50, 50)
-size = (100, 100, 100)
-distance = np.linalg.norm(np.subtract(np.indices(size).T,np.asarray(center)), axis=len(center))
-sphere2 = np.ones(size) * (distance<=15)
+# center = (50, 50, 50)
+# size = (100, 100, 100)
+# distance = np.linalg.norm(np.subtract(np.indices(size).T,np.asarray(center)), axis=len(center))
+# sphere2 = np.ones(size) * (distance<=15)
 
 #Plot sphere
 # fig =plt.figure(figsize=(6,6))
@@ -96,7 +96,7 @@ sphere2 = np.ones(size) * (distance<=15)
 # sphere1[5,5,5:6] = 1
 
 # sphere2 =  np.zeros((10,10,10))
-# sphere2[5,5,8:9] = 1
+# sphere2[5,5,6:7] = 1
 
 
 
@@ -209,14 +209,12 @@ ax.w_xaxis.set_pane_color((0.2, 0.2, 0.2, 1.0))
 ax.w_yaxis.set_pane_color((0.2, 0.2, 0.2, 1.0))
 ax.w_zaxis.set_pane_color((0.2, 0.2, 0.2, 1.0))
 
-
 #plt.savefig(os.path.join(out_folder,"Displacements.png"))
 
 #plt.close()
 
-plot_3_D_alpha(sphere1)
-
-plot_3_D_alpha(sphere2)
+#plot_3_D_alpha(sphere1)
+#plot_3_D_alpha(sphere2)
 
 s2=sig2noise.copy()
 s2[sig2noise==1]=0
