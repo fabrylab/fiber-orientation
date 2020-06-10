@@ -18,9 +18,9 @@ from scipy.signal import correlate
 
 
 def get_field_shape3d(image_size, window_size, overlap):
-      n_row = (image_size[0] - window_size[0]) // (window_size[0] - overlap) + 1
-      n_col =  (image_size[1] - window_size[1]) // (window_size[1] - overlap) + 1
-      n_z = (image_size[2] - window_size[2]) // (window_size[2] - overlap) + 1
+      n_row = (image_size[0] - window_size[0]) // (window_size[0] - overlap[0]) + 1
+      n_col =  (image_size[1] - window_size[1]) // (window_size[1] - overlap[1]) + 1
+      n_z = (image_size[2] - window_size[2]) // (window_size[2] - overlap[2]) + 1
       return n_row, n_col, n_z
 
 
@@ -147,6 +147,8 @@ def extended_search_area_piv3D(frame_a,
     # get field shape
     n_rows, n_cols, n_z = get_field_shape3d(frame_a.shape, window_size, overlap)
 
+    print (n_rows, n_cols, n_z)
+    
     #    # define arrays
     window_a = np.zeros(window_size, dtype=DTYPEi)
     search_area = np.zeros(search_area_size, dtype=DTYPEi)
@@ -178,10 +180,10 @@ def extended_search_area_piv3D(frame_a,
     #                 return search_area
     
 
-    for I,i in tqdm(enumerate(range(0, frame_a.shape[0] - window_size[0], window_size[0] - overlap)), total=n_rows):
+    for I,i in tqdm(enumerate(range(0, frame_a.shape[0] - window_size[0], window_size[0] - overlap[0])), total=n_rows):
         #print(i+"/"+n_rows)
-        for J,j in enumerate(range(0, frame_a.shape[1] - window_size[1], window_size[1] - overlap)):
-            for Z, z in enumerate(range(0, frame_a.shape[2] - window_size[2], window_size[2] - overlap)):
+        for J,j in enumerate(range(0, frame_a.shape[1] - window_size[1], window_size[1] - overlap[1])):
+            for Z, z in enumerate(range(0, frame_a.shape[2] - window_size[2], window_size[2] - overlap[2])):
                 # get interrogation window matrix from frame a
                 window_a = frame_a[i:i+window_size[0], j:j+window_size[1], z:z+window_size[2]]
                 #print (i,j,z)
