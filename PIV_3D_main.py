@@ -259,8 +259,7 @@ class CorrelationFunction3D():
         r3 = (max(0, self.peak1[2] - width), min(self.peak1[2] + width + 1, self.data.shape[2]))
 
 
-
-        tmp[r1[0]:r1[0], r2[0]:r2[0], r3[0]:r3[0]] = ma.masked
+        tmp[r1[0]:r1[1], r2[0]:r2[1], r3[0]:r3[1]] = ma.masked
         peak, corr_max2 = self._find_peak(tmp)
 
         return peak, corr_max2
