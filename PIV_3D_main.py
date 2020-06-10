@@ -1,4 +1,5 @@
 
+from numba import njit, jit   # Andreas: crashes for me if numba is imported later
 import numpy as np
 import numpy.ma as ma
 from numpy.fft import rfft2,irfft2,fftshift
@@ -24,65 +25,6 @@ def get_field_shape3d(image_size, window_size, overlap):
       return n_row, n_col, n_z
 
 
-def plot_3_D(grid, z):
-    col = [(0, 0, 1, x / np.max(z)) for x in np.ravel(z)]
-
-    fig = plt.figure()
-    ax = fig.gca(projection='3d')
-    ax.scatter(np.ravel(grid[0]), np.ravel(grid[1]), np.ravel(grid[2]), c=col)
-
-    plt.show()
-
-
-def explode(data):
-    # following "https://matplotlib.org/3.1.1/gallery/mplot3d/voxels_numpy_logo.html"
-
-    if len(data.shape) == 3:
-        size = np.array(data.shape) * 2
-        data_e = np.zeros(size - 1, dtype=data.dtype)
-        data_e[::2, ::2, ::2] = data
-    if len(data.shape) == 4: ## color data
-        size = np.array(data.shape)[:3] * 2
-        data_e = np.zeros(np.concatenate([size - 1,np.array([4])]) , dtype=data.dtype)
-        data_e[::2, ::2, ::2,:] = data
-
-    return data_e
-
-
-def plot_3_D_alpha(data):
-    # following "https://matplotlib.org/3.1.1/gallery/mplot3d/voxels_numpy_logo.html"
-
-    col = np.zeros((data.shape[0], data.shape[1], data.shape[2], 4))
-
-
-    data_fil = data.copy()
-    data_fil[(data == Inf)] = np.nanmax(data[~(data == Inf)])
-    data_fil =(data_fil - np.nanmin(data_fil)) / (np.nanmax(data_fil) - np.nanmin(data_fil))
-    data_fil[np.isnan(data_fil)] = 0
-
-    col[:, :, :, 2] = 1
-    col[:, :, :, 3] = data_fil
-
-    col_exp = explode(col)
-    fill = explode(np.ones(data.shape))
-
-    x, y, z = np.indices(np.array(fill.shape) + 1).astype(float) // 2
-
-    x[0::2,:,:] += 0.05
-    y[:,0::2,:] += 0.05
-    z[:,:,0::2] += 0.05
-    x[1::2,:,:] += 0.95
-    y[:,1::2,:] += 0.95
-    z[:,:,1::2] += 0.95
-
-
-    fig = plt.figure()
-    ax = fig.gca(projection='3d')
-    ax.voxels(x,y,z,fill, facecolors=col_exp, edgecolors=col_exp)
-    ax.set_xlabel("x")
-    ax.set_ylabel("y")
-    ax.set_zlabel("z")
-    plt.show()
 
 
 def check_search_area_size(search_area_size, window_size, warn=True):
@@ -117,7 +59,6 @@ def simple_defo(x, y):
     return defo
 
 
-from numba import njit, jit
 #@jit   #(no python , parallelization)
 def extended_search_area_piv3D(frame_a,
                              frame_b,
@@ -237,9 +178,9 @@ def extended_search_area_piv3D(frame_a,
 
     if drift_correction:
         # drift correction
-        u= u - np.mean(u)
-        v= v - np.mean(v)
-        w= w - np.mean(w)
+        u = u - np.mean(u)
+        v = v - np.mean(v)
+        w = w - np.mean(w)
 
     if sig2noise_method:
         return u, v, w, sig2noise
@@ -456,6 +397,131 @@ class CorrelationFunction3D():
         return sig2noise
 
 
+def replace_nans(a, max_iter, tol, kernel_size = 2, method = 'disk'):
+
+
+    DTYPEf = np.float
+    DTYPEi = np.int
+
+    array = a.copy()
+    n_dim = len(array.shape)
+
+    # generating the kernel
+    kernel = np.zeros([2 * kernel_size + 1] * len(array.shape), dtype=int)
+    if method == 'localmean':
+        kernel += 1
+    elif method == 'disk':
+        dist, dist_inv = get_dist(kernel, kernel_size)
+        kernel[dist <= kernel_size] = 1
+    elif method == 'distance':
+        dist, dist_inv = get_dist(kernel, kernel_size)
+        kernel[dist <= kernel_size] = dist_inv[dist <= kernel_size]
+    else:
+        raise ValueError('method not valid. Should be one of `localmean`, `disk` or `distance`.')
+
+    # list of kernel array indices
+    kernel_indices = np.indices(kernel.shape)
+    kernel_indices = np.reshape(kernel_indices, (n_dim, (2 * kernel_size + 1) ** n_dim), order="C").T
+
+    # indices where array is NaN
+    nan_indices = np.array(np.nonzero(np.isnan(array))).T.astype(DTYPEi)
+
+    # number of NaN elements
+    n_nans = len(nan_indices)
+
+    # arrays which contain replaced values to check for convergence
+    replaced_new = np.zeros(n_nans, dtype=DTYPEf)
+    replaced_old = np.zeros(n_nans, dtype=DTYPEf)
+
+    # make several passes
+    # until we reach convergence
+    for it in range(max_iter):
+        # note: identifying new nan indices and looping other the new indices would give slightly different result
+
+        # for each NaN element
+        for k in range(n_nans):
+            ind = nan_indices[k] #2 or 3 indices indicating the position of a nan element
+            # init to 0.0
+            replaced_new[k] = 0.0
+            n = 0.0
+
+            # generating a list of indices of the convolution window in the array
+            slice_indices = np.array(np.meshgrid(*[range(i-kernel_size,i+kernel_size+1) for i in ind]))
+            slice_indices = np.reshape(slice_indices,( n_dim, (2 * kernel_size + 1) ** n_dim), order="C").T
+
+            # loop over the kernel
+            for s_index, k_index in zip(slice_indices, kernel_indices):
+                s_index = tuple(s_index) # this is necessary for numpy array indexing
+                k_index = tuple(k_index)
+
+                # skip if we are outside of array boundaries, if the array element is nan or if the kernel element is zero
+                if all([s >= 0 and s < bound for s, bound  in zip(s_index, array.shape)]):
+                    if not np.isnan(array[s_index]) and kernel[k_index] != 0:
+                    # convolve kernel with original array
+                        replaced_new[k] = replaced_new[k] + array[s_index] * kernel[k_index]
+                        n = n + kernel[k_index]
+
+                    # divide value by effective number of added elements
+            if n > 0:
+                replaced_new[k] = replaced_new[k] / n
+            else:
+                replaced_new[k] = np.nan
+
+        # bulk replace all new values in array
+        for k in range(n_nans):
+            array[tuple(nan_indices[k])] = replaced_new[k]
+
+
+        # check if mean square difference between values of replaced
+        # elements is below a certain tolerance
+        if np.mean((replaced_new - replaced_old) ** 2) < tol:
+            break
+        else:
+                replaced_old = replaced_new
+
+    return array
 
 
 
+
+
+def get_dist(kernel,kernel_size):
+
+    if len(kernel.shape) == 2:
+        # x and y coordinates for each points
+        xs, ys = np.indices(kernel.shape)
+        # maximal distance form center - distance to center (of each point)
+        dist = np.sqrt((ys - kernel_size) ** 2 + (xs - kernel_size) ** 2)
+        dist_inv = np.sqrt(2) * kernel_size - dist
+
+    if len(kernel.shape) == 3:
+        xs, ys, zs = np.indices(kernel.shape)
+        dist = np.sqrt((ys - kernel_size) ** 2 + (xs - kernel_size) ** 2 + (zs - kernel_size) ** 2)
+        dist_inv = np.sqrt(3) * kernel_size - dist
+
+    return dist, dist_inv
+
+
+def replace_outliers(u, v, w=None, method='localmean', max_iter=5, tol=1e-3, kernel_size=1):
+
+
+    uf = replace_nans(u, method=method, max_iter=max_iter, tol=tol, kernel_size=kernel_size)
+    vf = replace_nans(v, method=method, max_iter=max_iter, tol=tol, kernel_size=kernel_size)
+    if isinstance(w, np.ndarray):
+        wf =  replace_nans(w, method=method, max_iter=max_iter, tol=tol, kernel_size=kernel_size)
+        return uf, vf, wf
+    return uf, vf
+
+
+def sig2noise_val(u, v, w=None, sig2noise=None, threshold=1.3):
+
+    ind = sig2noise < threshold
+
+    u[ind] = np.nan
+    v[ind] = np.nan
+    if isinstance(w,np.ndarray):
+        w[ind] = np.nan
+        return u, v, w, ind
+
+
+    return u, v, ind
