@@ -118,19 +118,26 @@ def plot_3D_alpha(data):
 
 
 
-def quiver_3D(u, v, w, mask_filtered=None, filter_def=0, filter_reg=(1,1,1), cmap="jet", quiv_args={}):
+def quiver_3D(u, v, w, xrange=None,yrange=None,zrange=None, mask_filtered=None, filter_def=0, filter_reg=(1,1,1), cmap="jet", quiv_args={}):
     #filter_def filters values with smaler absolute deformation
     # nans are also removed
     # setting the filter to <0 will probably mess up the arrow colors
     # filter_reg filters every n-th value, separate for x, y, z axis
     # you can also provide your own mask with mask_filtered !!! make sure to filter out arrows with zero total deformation!!!!
     # other wise the arrows are not colored correctly
+    # use indices for x,y,z axis as default - can be specified by x,y,z
 
     # default arguments for the quiver plot. can be overwritten by quiv_args
     quiver_args = {"normalize":False, "alpha":0.8, "pivot":'tip', "linewidth":0.5}
     quiver_args.update(quiv_args)
-
+    
+    # generate x,y,z coords from indices
     x, y, z = np.indices(u.shape)
+    # if dimension are specified convert coordinates
+    if not (xrange,yrange,zrange) == (None,None,None):
+        x,y,z = (x*xrange/u.shape[0],  y*yrange/u.shape[0], z*zrange/u.shape[2])
+        
+        
     #distance = np.sqrt(x ** 2 + y ** 2 + z ** 2)
     deformation = np.sqrt(u ** 2 + v ** 2 + w ** 2)
     if not isinstance(mask_filtered, np.ndarray):
