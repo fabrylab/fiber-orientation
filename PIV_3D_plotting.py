@@ -118,7 +118,7 @@ def plot_3D_alpha(data):
 
 
 
-def quiver_3D(u, v, w, xrange=None,yrange=None,zrange=None, mask_filtered=None, filter_def=0, filter_reg=(1,1,1), cmap="jet", quiv_args={},cbound=None):
+def quiver_3D(u, v, w, x=None, y=None, z=None, image_dim=None, mask_filtered=None, filter_def=0, filter_reg=(1,1,1), cmap="jet", quiv_args={}):
     #filter_def filters values with smaler absolute deformation
     # nans are also removed
     # setting the filter to <0 will probably mess up the arrow colors
@@ -130,19 +130,23 @@ def quiver_3D(u, v, w, xrange=None,yrange=None,zrange=None, mask_filtered=None, 
     # default arguments for the quiver plot. can be overwritten by quiv_args
     quiver_args = {"normalize":False, "alpha":0.8, "pivot":'tip', "linewidth":0.5}
     quiver_args.update(quiv_args)
-    
-    # generate x,y,z coords from indices
-    x, y, z = np.indices(u.shape)
-    # if dimension are specified convert coordinates
-    if not (xrange,yrange,zrange) == (None,None,None):
-        x,y,z = (x*xrange/u.shape[0],  y*yrange/u.shape[0], z*zrange/u.shape[2])
-        
-        
-    #distance = np.sqrt(x ** 2 + y ** 2 + z ** 2)
+
+    if not isinstance(image_dim, (list, tuple, np.ndarray)):
+        image_dim=np.array(u.shape)
+
+    if x is None:
+            x, y, z = np.indices(u.shape) * (np.array(image_dim)/np.array(u.shape))[:,np.newaxis,np.newaxis,np.newaxis]
+    else:
+        x, y, z = np.array([x,y,z]) * (np.array(image_dim) / np.array(u.shape))[:, np.newaxis]
+
     deformation = np.sqrt(u ** 2 + v ** 2 + w ** 2)
     if not isinstance(mask_filtered, np.ndarray):
         mask_filtered = deformation > filter_def
-        mask_filtered[::filter_reg[0], ::filter_reg[1], ::filter_reg[2]] *=  True
+        if isinstance(filter_reg, tuple):
+            mask_filtered[::filter_reg[0], ::filter_reg[1], ::filter_reg[2]] *= True
+
+
+
 
 
     xf = x[mask_filtered]
@@ -154,10 +158,7 @@ def quiver_3D(u, v, w, xrange=None,yrange=None,zrange=None, mask_filtered=None, 
     df = deformation[mask_filtered]
 
     # make cmap
-    if not cbound:
-        cbound = [0,np.nanmax(df)]
-    
-    
+    cbound = [0, np.nanmax(df)]
     # create normalized color map for arrows
     norm = matplotlib.colors.Normalize(vmin=cbound[0], vmax=cbound[1])  # 10 ) #cbound[1] ) #)
     sm = matplotlib.cm.ScalarMappable(cmap=cmap, norm=norm)
