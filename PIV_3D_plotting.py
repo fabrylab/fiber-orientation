@@ -118,7 +118,7 @@ def plot_3D_alpha(data):
 
 
 
-def quiver_3D(u, v, w, x=None, y=None, z=None, image_dim=None, mask_filtered=None, filter_def=0, filter_reg=(1,1,1), cmap="jet", quiv_args={}):
+def quiver_3D(u, v, w, x=None, y=None, z=None, image_dim=None, mask_filtered=None, filter_def=0, filter_reg=(1,1,1), cmap="jet", quiv_args={}, cbound=None):
     #filter_def filters values with smaler absolute deformation
     # nans are also removed
     # setting the filter to <0 will probably mess up the arrow colors
@@ -146,9 +146,6 @@ def quiver_3D(u, v, w, x=None, y=None, z=None, image_dim=None, mask_filtered=Non
             mask_filtered[::filter_reg[0], ::filter_reg[1], ::filter_reg[2]] *= True
 
 
-
-
-
     xf = x[mask_filtered]
     yf = y[mask_filtered]
     zf = z[mask_filtered]
@@ -158,7 +155,8 @@ def quiver_3D(u, v, w, x=None, y=None, z=None, image_dim=None, mask_filtered=Non
     df = deformation[mask_filtered]
 
     # make cmap
-    cbound = [0, np.nanmax(df)]
+    if not cbound:
+        cbound = [0,np.nanmax(df)]
     # create normalized color map for arrows
     norm = matplotlib.colors.Normalize(vmin=cbound[0], vmax=cbound[1])  # 10 ) #cbound[1] ) #)
     sm = matplotlib.cm.ScalarMappable(cmap=cmap, norm=norm)
