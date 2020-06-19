@@ -2,6 +2,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 from itertools import chain
+from mpl_toolkits.mplot3d import Axes3D
 
 def scatter_3D(a, cmap="jet",sca_args={}, control="color", size=60):
 
@@ -128,8 +129,13 @@ def quiver_3D(u, v, w, x=None, y=None, z=None, image_dim=None, mask_filtered=Non
     # use indices for x,y,z axis as default - can be specified by x,y,z
 
     # default arguments for the quiver plot. can be overwritten by quiv_args
-    quiver_args = {"normalize":False, "alpha":0.8, "pivot":'tip', "linewidth":0.5}
+    quiver_args = {"normalize":False, "alpha":0.8, "pivot":'tail', "linewidth":1, "length":20}
     quiver_args.update(quiv_args)
+
+    u = np.array(u)
+    v = np.array(v)
+    w = np.array(w)
+
 
     if not isinstance(image_dim, (list, tuple, np.ndarray)):
         image_dim=np.array(u.shape)
