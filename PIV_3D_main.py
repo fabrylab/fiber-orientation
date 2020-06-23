@@ -1,5 +1,5 @@
 
-from numba import njit, jit   # Andreas: crashes for me if numba is imported later
+#from numba import njit, jit   # Andreas: crashes for me if numba is imported later
 import numpy as np
 import numpy.ma as ma
 from numpy.fft import rfft2,irfft2,fftshift
@@ -7,14 +7,14 @@ from math import log
 from scipy.signal import convolve
 import time
 import openpiv
-from openpiv.process import *
+from openpiv.process import normalize_intensity,DTYPEi,DTYPEf
 import warnings
 from progressbar import *
 from pylab import *
 import matplotlib.pyplot as plt
 import os
 from tqdm import tqdm
-from mpl_toolkits.mplot3d import Axes3D
+
 from scipy.signal import correlate
 
 
@@ -28,7 +28,8 @@ def get_field_shape3d(image_size, window_size, overlap):
 
 
 def check_search_area_size(search_area_size, window_size, warn=True):
-    # dsiplacement between window and searcharea can only be uniquely defined if window_size + searcharea_size is an even number
+    # TODO: discuss if this is correct
+    # displacement between window and searcharea can only be uniquely defined if window_size + searcharea_size is an even number
     # this warns, and corrects search_area_size if this is not the case
     corr_size = np.array(search_area_size) + np.array(window_size) - 1  # size of the correlation field
     search_area_size_corrected = []
@@ -79,7 +80,7 @@ def extended_search_area_piv3D(frame_a,
     # dsiplacement between window and searcharea can only be uniquely defined if window_size + searcharea_size is an even number
     # this warns, and corrects search_area_size if this is not the case
     search_area_size = check_search_area_size(search_area_size, window_size, warn=True)
-
+    print(window_size, overlap, search_area_size)
     p1 = int(np.ceil((window_size[0] + search_area_size[0]) / 2))
     p2 = int(np.ceil((window_size[1] + search_area_size[1]) / 2))
     p3 = int(np.ceil((window_size[2] + search_area_size[2]) / 2))
@@ -149,12 +150,8 @@ def extended_search_area_piv3D(frame_a,
                 search_area = frame_b[r1[0]:r1[1], r2[0]:r2[1], r3[0]:r3[1]]
 
 
-                
-
-
-                ##############################
                 # compute correlation map
-                if (np.sum(window_a!=0)>0) and (np.sum(search_area!=0)>0) :
+                if np.any(window_a) and np.any(search_area) :
                     # normalizing_intensity simply substratcs the mean
                     corr = correlate(normalize_intensity(search_area), normalize_intensity(window_a), method="fft", mode="full") # measure time and compare
                     # corr = correlate_windows3D(search_area, window_a,( nfftx=nfftx, nffty=nffty)
@@ -162,12 +159,10 @@ def extended_search_area_piv3D(frame_a,
     
                     # find subpixel approximation of the peak center
                     i_peak, j_peak, z_peak = c.subpixel_peak_position(subpixel_method)
-    
-                    # confirm this// especially if wnidowsize > search area is possibel (should be?)
                     corr_center = (np.array(corr.shape) - 1) / 2
                     v[I, J, Z] = (corr_center[0] - i_peak) * du
-                    u[I, J, Z] = (corr_center[1]- j_peak)  * dv
-                    w[I, J, Z] = (corr_center[2] - z_peak)  *dw
+                    u[I, J, Z] = (corr_center[1]- j_peak) * dv
+                    w[I, J, Z] = (corr_center[2] - z_peak) * dw
                     
 
                     if sig2noise_method:
@@ -518,7 +513,7 @@ def sig2noise_val(u, v, w=None, sig2noise=None, threshold=1.3):
 
     u[ind] = np.nan
     v[ind] = np.nan
-    if isinstance(w,np.ndarray):
+    if isinstance(w, np.ndarray):
         w[ind] = np.nan
         return u, v, w, ind
 

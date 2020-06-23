@@ -82,10 +82,10 @@ def get_coordinates(image_size, window_size, overlap):
 
     # compute grid coordinates of the interrogation window centers
     # compute grid coordinates of the interrogation window centers
-    z = np.arange(field_shape[2]) * (window_size[2] - overlap[2]) + window_size[2] / 2.0
     x = np.arange(field_shape[1]) * (window_size[1] - overlap[1]) + window_size[1] / 2.0
     y = np.arange(field_shape[0]) * (window_size[0] - overlap[0]) + window_size[0] / 2.0
 
+    z = np.arange(field_shape[2]) * (window_size[2] - overlap[2]) + window_size[2] / 2.0
     return np.meshgrid(x, y, z)
 
 

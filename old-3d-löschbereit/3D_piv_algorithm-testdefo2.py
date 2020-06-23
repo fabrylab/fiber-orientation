@@ -15,7 +15,8 @@ import os
 from tqdm import tqdm
 from mpl_toolkits.mplot3d import Axes3D
 from scipy.signal import correlate
-
+from skimage.morphology import disk
+from scipy.signal import convolve
 
 def get_field_shape3d(image_size, window_size, overlap):
       n_row = (image_size[0] - window_size[0]) // (window_size[0] - overlap) + 1
@@ -82,7 +83,7 @@ def plot_3_D_alpha(data):
     ax.set_xlabel("x")
     ax.set_ylabel("y")
     ax.set_zlabel("z")
-    plt.show()
+
 
 
 def check_search_area_size(search_area_size, window_size, warn=True):
@@ -429,6 +430,204 @@ class CorrelationFunction3D():
 
         return sig2noise
 
+
+def sig2noise_val_new(u, v, sig2noise, w=None, threshold=1.3):
+
+    mask = sig2noise < threshold
+
+    u[mask] = np.nan
+    v[mask] = np.nan
+    if isinstance(w,np.ndarray):
+        w[mask] = np.nan
+        return u, v, w, mask
+    return u, v, mask
+
+
+def replace_nans(array, max_iter, tol, kernel_size = 2, method = 'disk'):
+
+    kernel = np.empty((2 * kernel_size + 1, 2 * kernel_size + 1), dtype=DTYPEf)
+    iter_seeds = np.zeros(max_iter, dtype=DTYPEi)
+
+    # indices where array is NaN
+    inans, jnans = [x.astype(DTYPEi) for x in np.nonzero(np.isnan(array))]
+
+    # number of NaN elements
+    n_nans = len(inans)
+
+    # arrays which contain replaced values to check for convergence
+    replaced_new = np.zeros(n_nans, dtype=DTYPEf)
+    replaced_old = np.zeros(n_nans, dtype=DTYPEf)
+
+    # depending on kernel type, fill kernel array
+    if method == 'localmean':
+        for i in range(2 * kernel_size + 1):
+            for j in range(2 * kernel_size + 1):
+                kernel[i, j] = 1.0
+
+    elif method == 'disk':
+        for i in range(2 * kernel_size + 1):
+            for j in range(2 * kernel_size + 1):
+                if ((kernel_size - i) ** 2 + (kernel_size - j) ** 2) ** 0.5 <= kernel_size:
+                    kernel[i, j] = 1.0
+                else:
+                    kernel[i, j] = 0.0
+
+    elif method == 'distance':
+        for i in range(2 * kernel_size + 1):
+            for j in range(2 * kernel_size + 1):
+                if ((kernel_size - i) ** 2 + (kernel_size - j) ** 2) ** 0.5 <= kernel_size:
+                    kernel[i, j] = kernel[i, j] = -1 * (((kernel_size - i) ** 2 + (kernel_size - j) ** 2) ** 0.5 - (
+                            (kernel_size) ** 2 + (kernel_size) ** 2) ** 0.5)
+                else:
+                    kernel[i, j] = 0.0
+    else:
+        raise ValueError('method not valid. Should be one of `localmean`, `disk` or `distance`.')
+
+    # make several passes
+    # until we reach convergence
+    for it in range(max_iter):
+
+        # for each NaN element
+        for k in range(n_nans):
+            i = inans[k]
+            j = jnans[k]
+
+            # init to 0.0
+            replaced_new[k] = 0.0
+            n = 0.0
+
+            # loop over the kernel
+            for I in range(2 * kernel_size + 1):
+                for J in range(2 * kernel_size + 1):
+
+                    # if we are not out of the boundaries
+                    if i + I - kernel_size < array.shape[0] and i + I - kernel_size >= 0:
+                        if j + J - kernel_size < array.shape[1] and j + J - kernel_size >= 0:
+
+                            # if the neighbour element is not NaN itself.
+                            if not np.isnan(array[i + I - kernel_size, j + J - kernel_size]):
+
+                                # do not bother with 0 kernel values
+                                if kernel[I, J] != 0:
+                                    # convolve kernel with original array
+                                    replaced_new[k] = replaced_new[k] + array[
+                                        i + I - kernel_size, j + J - kernel_size] * \
+                                                      kernel[I, J]
+                                    n = n + kernel[I, J]
+
+            # divide value by effective number of added elements
+            if n > 0:
+                replaced_new[k] = replaced_new[k] / n
+            else:
+                replaced_new[k] = np.nan
+
+        # bulk replace all new values in array
+        for k in range(n_nans):
+            array[inans[k], jnans[k]] = replaced_new[k]
+
+        # check if mean square difference between values of replaced
+        # elements is below a certain tolerance
+        if np.mean((replaced_new - replaced_old) ** 2) < tol:
+            break
+        else:
+            for l in range(n_nans):
+                replaced_old[l] = replaced_new[l]
+
+    return array
+
+
+
+
+def replace_nans_new(a, max_iter, tol, kernel_size = 2, method = 'disk'):
+
+
+    # new method:
+    # convloulution is (in this setting) defined as c = sum(wi * i), with sum(wi) = 1
+    #  i is pixel intensity ans wi is the weight at a position defined by the convolution kernel
+    #  if we want to  ignore nans in the convolution window we have to correct wi since some positions are no longer summed
+    # the correction is deviding by the sum of all weights that at not at nan position
+    # wi_n=wi/sum(wi*j) j=0 if i is nan else 1 // this means that sum(wi_n) for i not nan = 1
+
+
+    array = a.copy()
+    # generating the kernel
+    kernel = np.zeros([2 * kernel_size + 1] * len(array.shape), dtype=int)
+    if method == 'localmean':
+        kernel += 1
+    elif method == 'disk':
+        dist, dist_inv = get_dist(kernel, kernel_size)
+        kernel[dist <= kernel_size] = 1
+    elif method == 'distance':
+        dist, dist_inv = get_dist(kernel, kernel_size)
+        kernel[dist <= kernel_size] = dist_inv[dist <= kernel_size]
+    else:
+        raise ValueError('method not valid. Should be one of `localmean`, `disk` or `distance`.')
+
+    nan_mask = np.isnan(array)
+    nan_mas_init = nan_mask.copy()
+    replaced_old = np.zeros(np.sum(nan_mask))# only nans in the begining
+
+    for it in range(max_iter):
+
+        # breaking if nothing to replace
+        if np.sum(nan_mask) == 0:
+            break
+
+        # replacing none with convolution
+        non_nans = (~nan_mask).astype(int)
+        ar_zero_fill = array.copy()
+        ar_zero_fill[nan_mask] = 0
+        conv = convolve(ar_zero_fill, kernel, mode="same")/ convolve(non_nans, kernel, mode="same") # works in 3d in 2d
+        array[nan_mask] = conv[nan_mask]
+
+        # checking tolerance  ## but what do we need this for
+        replaced_new = array[nan_mas_init]
+        replaced_new[np.isnan(replaced_new)] = 0
+        if np.mean((replaced_new - replaced_old) ** 2) < tol:
+            break
+
+        # reassining nan region and replaced list
+        replaced_old = replaced_new
+        nan_mask = np.isnan(array)
+
+    return array
+
+
+
+
+
+def get_dist(kernel,kernel_size):
+
+    if len(kernel.shape) == 2:
+        # x and y coordinates for each points
+        xs, ys = np.indices(kernel.shape)
+        # maximal distance form center - distance to center (of each point)
+        dist = np.sqrt((ys - kernel_size) ** 2 + (xs - kernel_size) ** 2)
+        dist_inv = np.sqrt(2) * kernel_size - dist
+
+    if len(kernel.shape) == 3:
+        xs, ys, zs = np.indices(kernel.shape)
+        dist = np.sqrt((ys - kernel_size) ** 2 + (xs - kernel_size) ** 2 + (zs - kernel_size) ** 2)
+        dist_inv = np.sqrt(3) * kernel_size - dist
+
+    return dist, dist_inv
+
+
+def replace_outliers_new(u, v, w=None, method='localmean', max_iter=5, tol=1e-3, kernel_size=1):
+
+
+    uf = replace_nans(u, method=method, max_iter=max_iter, tol=tol, kernel_size=kernel_size)
+    vf = replace_nans(v, method=method, max_iter=max_iter, tol=tol, kernel_size=kernel_size)
+    if np.isinstance(w, np.ndarray):
+        wf = w.copy()
+        return uf, vf, wf
+    return uf, vf
+
+
+
+
+
+
 """
 load stacks
 """
@@ -629,4 +828,6 @@ s2[sig2noise==1]=0
 
 
 
-
+# signal to noise filtering and stuff # not tested yet
+u, v, w, mask = sig2noise_val_new( u, v, sig2noise, w=w, threshold=1.05)
+u, v, w = replace_outliers_new(u, v, w=w, method='localmean', max_iter=10, kernel_size=2)

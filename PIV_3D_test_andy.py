@@ -63,23 +63,23 @@ sphere2[4,3,2] = 1
 
 
 
-# center = (8, 8, 8)
-# size = (16, 16, 16)
-# distance = np.linalg.norm(np.subtract(np.indices(size).T,np.asarray(center)), axis=len(center))
-# sphere1 = np.ones(size) * (distance<=7)
+center = (8, 8, 8)
+size = (16, 16, 16)
+distance = np.linalg.norm(np.subtract(np.indices(size).T,np.asarray(center)), axis=len(center))
+sphere1 = np.ones(size) * (distance<=7)
 
 
-# center = (8, 8, 8)
-# size = (16, 16, 16)
-# distance = np.linalg.norm(np.subtract(np.indices(size).T,np.asarray(center)), axis=len(center))
-# sphere2 = np.ones(size) * (distance<=5)
+center = (8, 8, 8)
+size = (16, 16, 16)
+distance = np.linalg.norm(np.subtract(np.indices(size).T,np.asarray(center)), axis=len(center))
+sphere2 = np.ones(size) * (distance<=5)
 
 
 
 # # windowsize for stacks
-window_size = (2,2,2)
-overlap = (0,0,0)#25   #11
-search_area = (5,5,5)
+window_size = (5,5,5)
+overlap = (4,4,4)#25   #11
+search_area =  (5,5,5)
 
 
 
@@ -93,10 +93,10 @@ u, v, w, sig2noise = extended_search_area_piv3D(sphere1, sphere2, window_size, o
                               nffty=None, drift_correction = True)
 
 u, v, w, mask = sig2noise_val(u, v, w=w, sig2noise=sig2noise, threshold=1.3)
-u, v, w = replace_outliers(u, v, w, max_iter=1, tol=100 , kernel_size=2, method='disk')
+#u, v, w = replace_outliers(u, v, w, max_iter=1, tol=100 , kernel_size=2, method='disk')
 
 scatter_3D(sig2noise, control="size")
-quiver_3D(u, v, w)
+quiver_3D(v,-u, w)
 
 
 

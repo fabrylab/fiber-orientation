@@ -1,7 +1,7 @@
 
 import matplotlib.pyplot as plt
-from openpiv.pyprocess import *
-
+from openpiv.process import *
+from openpiv.tools import display_vector_field, save
 
 def correlate_windows(window_a, window_b, corr_method='fft', nfftx=None, nffty=None):
 
@@ -170,12 +170,13 @@ def extended_search_area_piv_corrected( frame_a, frame_b,
 
 
 # genrating a bar shifting it by 1 pixel
-size = (100, 100)
+size = (50, 50)
 shape1 = np.zeros(size)
 shape2 = np.zeros(size)
-shape1[50, 50:58] = 1
-shape2[50, 50:59] = 1
-
+shape1[25, 25:30] = 1
+shape2[26, 26:31] = 1
+shape1=np.random.uniform(0,1,(50,50))
+shape2=np.random.uniform(0,1,(50,50))
 window_size = 5
 overlap = 4
 ##
@@ -185,37 +186,59 @@ search_area = 5
 u, v, sig2noise = extended_search_area_piv(shape1, shape2, window_size=window_size, overlap=overlap, search_area_size=search_area, subpixel_method='gaussian',
                               sig2noise_method='peak2peak', corr_method="fft",
                               width=2)
-## standard extende_search_area function with window_size > search_area
+x, y = get_coordinates(shape1.shape, window_size=window_size,overlap=overlap)
+#  standard extende_search_area function with window_size > search_area
 search_area = 7
 u1, v1, sig2noise1 = extended_search_area_piv(shape1, shape2, window_size=window_size, overlap=overlap, search_area_size=search_area, subpixel_method='gaussian',
                               sig2noise_method='peak2peak', corr_method="fft",
                               width=2)
+x1, y1 = get_coordinates(shape1.shape, window_size=window_size,overlap=overlap)
 
-
-##corrected extende_search_area function with window_size > search_area
+#  window_size == search_area
 window_size = 7
 search_area = 7
 u2, v2, sig2noise2 = extended_search_area_piv(shape1, shape2, window_size=window_size, overlap=overlap, search_area_size=search_area, subpixel_method='gaussian',
                               sig2noise_method='peak2peak', corr_method="fft",
                               width=2)
 
+x2, y2 = get_coordinates(shape1.shape, window_size=window_size,overlap=overlap)
 
 
+sh1 = shape1.copy()
+sh2 = shape1.copy()
+sh1[shape1==0] = np.nan
+sh2[shape2==0] = np.nan
+plt.figure()
+plt.imshow(sh1, cmap="Blues", alpha=0.9,vmin=-1,vmax=0)
+plt.imshow(sh2, cmap="Greens", alpha=0.9,vmin=-1,vmax=0)
+plt.text(10,10,"frame1", color="blue")
+plt.text(40,40,"frame2", color="green")
 
 
 plt.figure()
-plt.imshow(shape1)
-plt.figure()
-plt.imshow(shape2)
-
-plt.figure()
-plt.quiver(-u, v)
+plt.quiver(u, v, scale_units="inches", scale=5)
 plt.imshow(np.sqrt(u**2+v**2))
-plt.figure()
-plt.quiver(-u1, v1)
-plt.imshow(np.sqrt(u1**2+v1**2))
-plt.figure()
-plt.quiver(-u2, v2)
-plt.imshow(np.sqrt(u2**2+v2**2))
+plt.title("ws=5, sa=5")
 
-############################# there is something "wrong" with how search area is selected ##################################
+plt.figure()
+plt.quiver(u1, v1, scale_units="inches", scale=5)
+plt.title("ws=5, sa=7")
+plt.imshow(np.sqrt(u1**2+v1**2))
+
+plt.figure()
+plt.quiver(u2, v2,scale_units="inches", scale=5)
+plt.imshow(np.sqrt(u2**2+v2**2), origin="upper")
+plt.title("ws=7, sa=7")
+
+# plotting with openpiv functions
+'''
+save(x,y,u,v,np.ones(x.shape).astype(bool),"test.txt")
+fig, ax = display_vector_field("test.txt",scale_units="inches", scale=5)
+ax.imshow(shape1)
+save(x1,y1,u1,v1,np.ones(x.shape).astype(bool),"test1.txt")
+fig, ax = display_vector_field("test1.txt",scale_units="inches", scale=5)
+ax.imshow(shape1)
+save(x1,y1,u1,v1,np.ones(x.shape).astype(bool),"test2.txt")
+fig, ax = display_vector_field("test2.txt",scale_units="inches", scale=5)
+ax.imshow(shape1)
+'''
