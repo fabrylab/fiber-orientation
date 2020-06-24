@@ -4,7 +4,7 @@ import numpy as np
 from itertools import chain
 from mpl_toolkits.mplot3d import Axes3D
 
-def scatter_3D(a, cmap="jet",sca_args={}, control="color", size=60):
+def scatter_3D(a, cmap="jet", sca_args={}, control="color", size=60):
 
     # default arguments for the quiver plot. can be overwritten by quiv_args
     scatter_args = {"alpha":1}
@@ -89,7 +89,7 @@ def plot_3D_alpha(data):
 
 
     data_fil = data.copy()
-    data_fil[(data == Inf)] = np.nanmax(data[~(data == Inf)])
+    data_fil[(data == np.inf)] = np.nanmax(data[~(data == np.inf)])
     data_fil =(data_fil - np.nanmin(data_fil)) / (np.nanmax(data_fil) - np.nanmin(data_fil))
     data_fil[np.isnan(data_fil)] = 0
 
@@ -119,7 +119,7 @@ def plot_3D_alpha(data):
 
 
 
-def quiver_3D(u, v, w, x=None, y=None, z=None, image_dim=None, mask_filtered=None, filter_def=0, filter_reg=(1,1,1), cmap="jet", quiv_args={}, cbound=None):
+def quiver_3D(u, v, w, x=None, y=None, z=None, image_dim=None, mask_filtered=None, filter_def=0, filter_reg=[1], cmap="jet", quiv_args={}, cbound=None):
     #filter_def filters values with smaler absolute deformation
     # nans are also removed
     # setting the filter to <0 will probably mess up the arrow colors
@@ -136,20 +136,37 @@ def quiver_3D(u, v, w, x=None, y=None, z=None, image_dim=None, mask_filtered=Non
     v = np.array(v)
     w = np.array(w)
 
-
     if not isinstance(image_dim, (list, tuple, np.ndarray)):
-        image_dim=np.array(u.shape)
+        image_dim = np.array(u.shape)
 
+    # generating coordinates if not provided
     if x is None:
-            x, y, z = np.indices(u.shape) * (np.array(image_dim)/np.array(u.shape))[:,np.newaxis,np.newaxis,np.newaxis]
-    else:
-        x, y, z = np.array([x,y,z]) * (np.array(image_dim) / np.array(u.shape))[:, np.newaxis]
+        # if you provide deformations as a list
+        if len(u.shape) == 1:
+            x, y, z = [np.indices(u.shape)[0]  for i in range(3)]
+        # if you provide deformations as an array
+        elif len(u.shape) == 3:
+            x, y, z = np.indices(u.shape)
+        else:
+            raise ValueError("displacement data has wrong number of dimensions (%s). Use 1d array or list, or 3d array."%str(len(u.shape)))
+
+    # multiplying coordinates with "image_dim" factor if coordinates are provided
+    x, y, z = np.array([x,y,z]) * np.expand_dims(np.array(image_dim) / np.array(u.shape),axis=list(range(1,len(u.shape)+1)))
 
     deformation = np.sqrt(u ** 2 + v ** 2 + w ** 2)
     if not isinstance(mask_filtered, np.ndarray):
         mask_filtered = deformation > filter_def
-        if isinstance(filter_reg, tuple):
-            mask_filtered[::filter_reg[0], ::filter_reg[1], ::filter_reg[2]] *= True
+        if isinstance(filter_reg, list):
+            show_only = np.zeros(u.shape).astype(bool)
+            if len(filter_reg) == 1:
+                show_only[::filter_reg[0]] = True
+            elif len(filter_reg) == 3:
+                show_only[::filter_reg[0], ::filter_reg[1], ::filter_reg[2]] = True
+            else:
+                raise ValueError(
+                    "filter_reg data has wrong length (%s). Use list with length 1 or 3." % str(len(filter_reg.shape)))
+            mask_filtered = np.logical_and(mask_filtered, show_only)
+
 
 
     xf = x[mask_filtered]

@@ -1,8 +1,20 @@
 import sys
 sys.path.append(r"U:\Dropbox\software-github\fiber-orientation\fiber-orientation")
 from PIV_3D_main import *
+from PIV_3D_plotting import *
+import numpy as np
 
 
+
+### plotting test
+x = np.random.uniform(0,1,(10,10,10))
+y = np.random.uniform(0,1,(10,10,10))
+z = np.random.uniform(0,1,(10,10,10))
+u = np.random.uniform(0,1,(10,10,10))
+v = np.random.uniform(0,1,(10,10,10))
+w = np.random.uniform(0,1,(10,10,10))
+
+quiver_3D(u, v, w, x=None, y=None, z=None,mask_filtered=np.ones(u.shape).astype(bool), image_dim=[0.02,200,1])
 
 
 # # windowsize for stacks
