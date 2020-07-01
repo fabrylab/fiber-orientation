@@ -161,7 +161,7 @@ def get_structure_tensor_roi(im, mask=None):
 
 def get_principal_vectors(ot_xx, ot_yx, ot_yy):
     '''
-    Calculating eigenvectors and eigenvalues form teh structure tensor, selecting the minimal and maximal eigenvalues
+    Calculating eigenvectors and eigenvalues form the structure tensor, selecting the minimal and maximal eigenvalues
     and the corresponding eigenvectors. from https://www.soest.hawaii.edu/martel/Courses/GG303/Eigenvectors.pdf
     (maybe there is an error in the link?)
     This follows
@@ -225,6 +225,16 @@ def get_main_orientation_squared(ang, vx=0, vy=0):
 
     return ori
 
+def analyze_local(im, sigma=0, size=0, filter_type="gaussian"):
+    if filter_type =="gaussian":
+        ot_xx, ot_yx, ot_yy = get_structure_tensor_gaussian(im, sigma)
+    if filter_type == "uniform":
+        ot_xx, ot_yx, ot_yy = get_structure_tensor_uniform(im, size)
+
+    max_evec, min_evec, max_eval, min_eval = get_principal_vectors(ot_xx, ot_yx, ot_yy)
+    ori = (max_eval - min_eval) / (max_eval + min_eval)
+
+    return ori, max_evec, min_evec, max_eval, min_eval
 
 '''
 def custom_edge_filter(arr):
@@ -421,3 +431,17 @@ if __name__ == "__main__":
     # plot of orientation distribution
     fig2 = full_angle_plot(ori_list, angs)
     # save by fig2.savefig("example.png")
+
+
+'''
+# spatial distribution for fibre orientation
+# requires pyTFM
+import pyTFM.plotting
+im = plt.imread("/evaluation_polar_coordinates/Series001_z000_ch00.tif")[:,:,0]
+ori, max_evec, min_evec, max_eval, min_eval = analyze_local(im, sigma=8, size=0, filter_type="gaussian")
+f = np.percentile(ori,0.8)
+fig, ax =  pyTFM.plotting.show_quiver(min_evec[:, :, 0] * ori, min_evec[:, :, 1] * ori, filter=[f, 12],
+                      scale_factor=0.1,
+                      width=0.003, cbar_str="coherency", cmap="viridis")
+plt.figure();plt.imshow(im)
+'''
