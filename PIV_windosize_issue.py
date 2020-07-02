@@ -44,17 +44,24 @@ fig = plt.figure()
 ax = plt.gca()
 ani = animation.FuncAnimation(fig, update_plot, 2, interval=300, blit=True, repeat_delay=0, fargs=(ims, ax))
 
-window_size1 = 24
-search_area_size1 = 64
-u, v, sig2noise = process.extended_search_area_piv( frame_a.astype(np.int32), frame_b.astype(np.int32), window_size=window_size1, overlap=12, dt=0.02, search_area_size=search_area_size1, sig2noise_method='peak2peak' )
-x, y = process.get_coordinates( image_size=frame_a.shape, window_size=24, overlap=12)
-tools.save(x, y, u, v, np.ones(u.shape), 'exp1_001_extended.txt' )
+# %%
+# %%time
+u, v, sig2noise = pyprocess.extended_search_area_piv( frame_a.astype(np.int32), frame_b.astype(np.int32), window_size=24, overlap=12, dt=0.02, search_area_size=64, sig2noise_method='peak2peak' )
+#u, v, sig2noise = process.extended_search_area_piv( frame_a.astype(np.int32), frame_b.astype(np.int32), window_size=24, overlap=12, dt=0.02, search_area_size=64, sig2noise_method='peak2peak' )
+x, y = process.get_coordinates( image_size=frame_a.shape, window_size=24, overlap=12 )
+u, v, mask = validation.sig2noise_val( u, v, sig2noise, threshold = 2.5 )
+u, v = filters.replace_outliers( u, v, method='localmean', max_iter=10, kernel_size=2)
+x, y, u, v = scaling.uniform(x, y, u, v, scaling_factor = 96.52 )
+tools.save(x, y, u, v, mask, 'exp1_001_extended.txt' )
 
-window_size2 = 24
-search_area_size2 = 64
-u, v, sig2noise = pyprocess.extended_search_area_piv(frame_a.astype(np.int32), frame_b.astype(np.int32), window_size=window_size2, overlap=12, dt=0.02, search_area_size=search_area_size2, sig2noise_method='peak2peak' )
-x, y = process.get_coordinates( image_size=frame_a.shape, window_size=24, overlap=12)
-tools.save(x, y, u, v, np.ones(u.shape), 'exp1_001_extended_py.txt' )
+# %%
+# %%time
+u, v, sig2noise = pyprocess.extended_search_area_piv( frame_a, frame_b, corr_method='fft', window_size=24, overlap=12, search_area_size=24, dt=0.02, sig2noise_method='peak2peak' )
+x, y = pyprocess.get_coordinates( image_size=frame_a.shape, window_size=24, overlap=12 )
+u, v, mask = validation.sig2noise_val( u, v, sig2noise, threshold = 2.5 )
+u, v = filters.replace_outliers( u, v, method='localmean', max_iter=10, kernel_size=2)
+x, y, u, v = scaling.uniform(x, y, u, v, scaling_factor = 96.52 )
+tools.save(x, y, u, v, mask, 'exp1_001_fft.txt' )
 
 window_size3 = 24
 search_area_size3 = 24
