@@ -433,15 +433,3 @@ if __name__ == "__main__":
     # save by fig2.savefig("example.png")
 
 
-'''
-# spatial distribution for fibre orientation
-# requires pyTFM
-import pyTFM.plotting
-im = plt.imread("/evaluation_polar_coordinates/Series001_z000_ch00.tif")[:,:,0]
-ori, max_evec, min_evec, max_eval, min_eval = analyze_local(im, sigma=8, size=0, filter_type="gaussian")
-f = np.percentile(ori,0.8)
-fig, ax =  pyTFM.plotting.show_quiver(min_evec[:, :, 0] * ori, min_evec[:, :, 1] * ori, filter=[f, 12],
-                      scale_factor=0.1,
-                      width=0.003, cbar_str="coherency", cmap="viridis")
-plt.figure();plt.imshow(im)
-'''
