@@ -28,11 +28,11 @@ im_f = gaussian(im, sigma=sigma1)
 # claculating local orientations
 ori, max_evec, min_evec, max_eval, min_eval = analyze_local(im_f, sigma=15, size=50, filter_type="gaussian")
 # finding nice threshold for orientation display
-f = np.percentile(ori, 75)
+f = np.nanpercentile(ori, 75)
 # plotting orientation
 # filter controls [minimum value("arrow lenght) displayed, only every x-th arrow shown]
 fig, ax =  show_quiver(min_evec[:, :, 0] * ori, min_evec[:, :, 1] * ori, filter=[f, 15],
-                      scale_factor=0.1,
+                      scale_ratio=0.2,
                       width=0.003, cbar_str="coherency", cmap="viridis")
 
 plt.figure();plt.imshow(im)

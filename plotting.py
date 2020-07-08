@@ -1,11 +1,10 @@
 import matplotlib
 import matplotlib.pyplot as plt
 import sys
-import os
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
-from tqdm import tqdm
+
 sys.path.append("/home/user/Software/fiber-orientation")
-from angel_calculations import *
+from cell_moement_analysis.angel_calculations import *
 from database_functions import *
 import datetime
 

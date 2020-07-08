@@ -1,5 +1,6 @@
 import numpy as np
 import os
+from skimage.filters import gaussian
 
 def flatten_dict(*args):
     ret_list = [i for i in range(len(args))]
@@ -42,3 +43,29 @@ def normalize(image, lb=0.1, ub=99.9):
     image[image < 0] = 0.0
     image[image > 1] = 1.0
     return image
+
+
+
+def convolution_fitler_with_nan(arr1, function, **kwargs):
+
+    '''
+        applies a gaussian to an array with nans, so that nan values are ignored.
+    :param arr1:
+    :param function: any convloution functio, such as skimage.filters.gaussian or scipy.ndimage.filters.ndimage.uniform_filter
+    :param f_args:  kwargs for the convolution function
+    :return:
+    '''
+
+
+    arr_zeros = arr1.copy()
+    arr_ones = np.zeros(arr1.shape)
+    arr_zeros[np.isnan(arr1)] = 0  # array where all nans are replaced by zeros
+    arr_ones[~np.isnan(arr1)] = 1  # array where all nans are replaced by zeros and all other values are replaced by ones
+
+    filter_zeros = function(arr_zeros, **kwargs)  # gaussian filter applied to both arrays
+    filter_ones = function(arr_ones, **kwargs)
+    filter_final = filter_zeros / filter_ones  # devision cancles somehow the effect of nan positions
+    filter_final[np.isnan(arr1)] = np.nan  # refilling original nans
+
+    return filter_final
+

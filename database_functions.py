@@ -1,14 +1,12 @@
 # functions handling accessing and writing to clickpoints
 import clickpoints
-import numpy as np
 from tqdm import tqdm
-import os
 from collections import defaultdict
 import sys
 sys.path.append("/home/user/Software/fiber-orientation")
 import traceback
 from utilities import *
-from angel_calculations import rotate_track
+from cell_moement_analysis.angel_calculations import rotate_track
 
 class OpenDB:
     # context manager for database file. if db is a path a new file handle is opened

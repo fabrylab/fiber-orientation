@@ -7,20 +7,19 @@
 # produces plots: illustrating some of the angles, showing the spatial angle distribution
 # in a heat map, and the radial angle distribution (100 bins) in both random and spheroid fibres
 from PIL import Image
-from skimage.measure import regionprops,label
-import clickpoints
+from skimage.measure import regionprops
 import sys
 sys.path.append("/home/user/Software/fiber-orientation")
 from plotting import *
-from angel_calculations import *
+from cell_moement_analysis.angel_calculations import *
 from fibre_orientation import benes_edge_detection_method
 #import os
 #os.chdir("/home/user/Software/fiber-orientation")
 
 # spheroid
-im = np.asarray(Image.open("evaluation_polar_coordinates/Pos002_S001_t314_z6_ch00.tif").convert("L"))
+im = np.asarray(Image.open("../evaluation_polar_coordinates/Pos002_S001_t314_z6_ch00.tif").convert("L"))
 l_vecs, l_points, l_length =  benes_edge_detection_method(im, minVal=50, maxVal=200, area_threshold=10)
-db = clickpoints.DataFile("evaluation_polar_coordinates/mask_spheroid_david.cdb")
+db = clickpoints.DataFile("../evaluation_polar_coordinates/mask_spheroid_david.cdb")
 mask = db.getMask(frame=0).data.astype(bool)
 db.db.close()
 center=np.array(regionprops(mask.astype(int))[0].centroid)
@@ -35,7 +34,7 @@ plt.show()
 
 
 # random fibres
-im = np.asarray(Image.open("evaluation_polar_coordinates/Series001_z000_ch00.tif").convert("L"))
+im = np.asarray(Image.open("../evaluation_polar_coordinates/Series001_z000_ch00.tif").convert("L"))
 l_vecs_rand, l_points_rand, l_length_rand =  benes_edge_detection_method(im, minVal=50, maxVal=200, area_threshold=10)
 center_rand = np.array([im.shape[0]/2,im.shape[1]/2])
 

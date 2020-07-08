@@ -1,4 +1,4 @@
-from cell_movement_orientation import *
+from cell_moement_analysis.cell_movement_orientation import *
 
 output_folder = "/home/user/Desktop/biophysDS/abauer/cell_orientation_22_04_2020"
 createFolder(output_folder)

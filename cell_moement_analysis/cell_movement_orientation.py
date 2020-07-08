@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 sys.path.append("/home/user/Software/fiber-orientation")
 from plotting import plot_binned_angle_fileds, vizualize_angles, plot_mean_angles, display_spatial_angle_distribution, plot_distance_distribution
 from database_functions import *
-from angel_calculations import *
+from cell_moement_analysis.angel_calculations import *
 from contextlib import suppress
 from utilities import *
 

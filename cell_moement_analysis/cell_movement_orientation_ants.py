@@ -1,5 +1,5 @@
-from cell_movement_orientation import *
-from angel_calculations import FilterAndWeighting
+from cell_moement_analysis.cell_movement_orientation import *
+from cell_moement_analysis.angel_calculations import FilterAndWeighting
 import clickpoints
 
 db_path = "/home/user/Desktop/biophysDS/abauer/ants_out/not_stitcheddatabase.cdb"
