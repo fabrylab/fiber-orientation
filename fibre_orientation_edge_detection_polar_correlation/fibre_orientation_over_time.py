@@ -1,4 +1,4 @@
-from fibre_orientation import *
+from fibre_orientation_edge_detection_polar_correlation.fibre_orientation import *
 import os
 from tqdm import tqdm
 folder = "/home/user/Desktop/biophysDS/dboehringer/Platte_3/Twitching-Experiments/Confocal-Experiments/2020-02-12-LuB1-Timelapse/stack 1/pos002/"
