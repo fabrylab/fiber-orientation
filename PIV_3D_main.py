@@ -100,27 +100,6 @@ def extended_search_area_piv3D(frame_a,
     w = np.zeros([n_rows, n_cols, n_z], dtype=DTYPEf)
     sig2noise = np.zeros([n_rows, n_cols, n_z], dtype=DTYPEf)
 
-    # loop over the interrogation windows
-    # i, j are the row, column indices of the top left corner
-    
-    # @jit(nopython=True)  
-    # def 3d_loop(frame_a,window_size,overlap):
-    #     for I,i in (enumerate(range(0, frame_a.shape[0] - window_size[0], window_size[0] - overlap))):  #tqdm()   , total=n_rows)
-    #         for J,j in enumerate(range(0, frame_a.shape[1] - window_size[1], window_size[1] - overlap)):
-    #             for Z, z in enumerate(range(0, frame_a.shape[2] - window_size[2], window_size[2] - overlap)):
-    #                 # get interrogation window matrix from frame a
-    #                 r1 = np.array((i - search_area_size[0] / 2, i + search_area_size[0] / 2)) + window_size[0] / 2 + p1 # addinging index shift due to padding
-    #                 r2 = np.array((j - search_area_size[1] / 2, j + search_area_size[1] / 2)) + window_size[1] / 2 + p2
-    #                 r3 = np.array((z - search_area_size[2] / 2, z + search_area_size[2] / 2)) + window_size[2] / 2 + p3
-    
-    #                 r1 = r1.astype(int) # maybe round up
-    #                 r2 = r2.astype(int)
-    #                 r3 = r3.astype(int)
-    
-    #                 search_area = frame_b[r1[0]:r1[1], r2[0]:r2[1], r3[0]:r3[1]]
-
-    #                 return search_area
-    
 
     for I,i in tqdm(enumerate(range(0, frame_a.shape[0] - window_size[0], window_size[0] - overlap[0])), total=n_rows):
         #print(i+"/"+n_rows)
@@ -128,14 +107,6 @@ def extended_search_area_piv3D(frame_a,
             for Z, z in enumerate(range(0, frame_a.shape[2] - window_size[2], window_size[2] - overlap[2])):
                 # get interrogation window matrix from frame a
                 window_a = frame_a[i:i+window_size[0], j:j+window_size[1], z:z+window_size[2]]
-                #print (i,j,z)
-               
-                # if  (43 in (np.arange(i,i+window_size[0])) and 43 in np.arange(j,j+window_size[1]) and 43 in np.arange(z,z+window_size[2])):
-                #       print(i)
-
-                #       # grid = np.meshgrid((np.arange(i,i+window_size[0])) , np.arange(j,j+window_size[1]) , np.arange(z,z+window_size[2]))
-                #       # plot_3_D(grid, window_a)
-           
 
 
                 # get search area using frame b
@@ -153,7 +124,7 @@ def extended_search_area_piv3D(frame_a,
                 # compute correlation map
                 if np.any(window_a) and np.any(search_area) :
                     # normalizing_intensity simply substratcs the mean
-                    corr = correlate(normalize_intensity(search_area), normalize_intensity(window_a), method="fft", mode="full") # measure time and compare
+                    corr = correlate(normalize_intensity(window_a), normalize_intensity(search_area), method="fft", mode="full") # measure time and compare
                     # corr = correlate_windows3D(search_area, window_a,( nfftx=nfftx, nffty=nffty)
                     c = CorrelationFunction3D(corr)
     
@@ -167,9 +138,6 @@ def extended_search_area_piv3D(frame_a,
 
                     if sig2noise_method:
                         sig2noise[I, J, Z] = c.sig2noise_ratio(sig2noise_method, width)
-                #plot_3_D_alpha(corr)
-                #plot_3_D_alpha(window_a)
-                #plot_3_D_alpha(search_area)
 
     if drift_correction:
         # drift correction
@@ -180,7 +148,7 @@ def extended_search_area_piv3D(frame_a,
     if sig2noise_method:
         return u, v, w, sig2noise
     else:
-        return u, v,w
+        return u, v, w
 
 
 def correlate_windows3D(window_a, window_b, nfftx=None, nffty=None, nfftz= None):

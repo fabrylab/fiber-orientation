@@ -3,7 +3,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 from itertools import chain
 from mpl_toolkits.mplot3d import Axes3D
-
+import matplotlib.animation as animation
+from utilities import normalize
+import cv2
+from skimage.transform import resize
+from imageio import mimsave
 def scatter_3D(a, cmap="jet", sca_args={}, control="color", size=60):
 
     # default arguments for the quiver plot. can be overwritten by quiv_args
@@ -151,7 +155,7 @@ def quiver_3D(u, v, w, x=None, y=None, z=None, image_dim=None, mask_filtered=Non
             raise ValueError("displacement data has wrong number of dimensions (%s). Use 1d array or list, or 3d array."%str(len(u.shape)))
 
     # multiplying coordinates with "image_dim" factor if coordinates are provided
-    x, y, z = np.array([x,y,z]) * np.expand_dims(np.array(image_dim) / np.array(u.shape),axis=list(range(1,len(u.shape)+1)))
+    x, y, z = np.array([x,y,z]) #* np.expand_dims(np.array(image_dim) / np.array(u.shape),axis=list(range(1,len(u.shape)+1)))
 
     deformation = np.sqrt(u ** 2 + v ** 2 + w ** 2)
     if not isinstance(mask_filtered, np.ndarray):
@@ -200,7 +204,7 @@ def quiver_3D(u, v, w, x=None, y=None, z=None, image_dim=None, mask_filtered=Non
     fig = plt.figure()
     ax = fig.gca(projection='3d', rasterized=True)
 
-    ax.quiver(xf, yf, zf, uf, vf, wf, colors=colors, **quiver_args)
+    ax.quiver(xf, yf, zf, vf, uf, wf, colors=colors, **quiver_args)
     plt.colorbar(sm)
 
     ax.set_xlim(x.min(), x.max())
@@ -213,3 +217,61 @@ def quiver_3D(u, v, w, x=None, y=None, z=None, image_dim=None, mask_filtered=Non
     ax.w_yaxis.set_pane_color((0.2, 0.2, 0.2, 1.0))
     ax.w_zaxis.set_pane_color((0.2, 0.2, 0.2, 1.0))
     return fig
+# plotting
+
+
+def animate_stacks(stack1, stack2, interval=100, repeat_delay=0, z_range=[0,"max"], drift_correction=True,
+                   normalize_images=True, add_circle=False, pos=(300,300), save_gif=True, gif_name="out.gif",max_axis=2,im_aspect="auto"):
+    # gif of maximum projections of stack1 and stack2
+
+    if z_range[1] == "max":
+        z_range[1] = stack1.shape[2]
+    ims = [np.max(stack1[:, :, z_range[0]: z_range[1]], axis=max_axis), np.max(stack2[:, :, z_range[0]: z_range[1]], axis=max_axis)]
+
+
+    # representation of the image stacks by maximums projections. The red circle marks the position of the cell
+    def update_plot(i, ims, ax):
+        a1 = ax.imshow(ims[i],aspect=im_aspect)
+
+        if add_circle:
+            a2 = ax.add_patch(plt.Circle(pos, 100, color="red", fill=False))
+        else:
+            a2=None
+        if ax.texts:
+            ax.texts[0].remove()
+        a3 = ax.text(30, 30, "stack " + str(i),fontsize=25)
+        return [a1, a2, a3]
+
+
+    bg_1 = np.percentile(ims[1], 25)
+    if drift_correction:
+        from scipy.ndimage.interpolation import shift
+        from skimage.feature import register_translation
+        shift_values = register_translation(ims[0], ims[1], upsample_factor=10)
+        shift_y = shift_values[0][0]
+        shift_x = shift_values[0][1]
+        print("shift between images = ", shift_values[0])
+        ims[1] = shift(ims[1], shift=(shift_y, shift_x), order=3,cval=bg_1)
+
+    if normalize_images:
+       ims[0] = normalize(ims[0],0.1,99.1)
+       ims[1] = normalize(ims[1],0.1,99.1)
+
+    if save_gif:
+        max_shape = np.max([im.shape for im in ims])
+        ims_out = []
+        for i, im in enumerate(ims):
+            im =  resize(im,(max_shape,max_shape) )
+            im = cv2.cvtColor((im * 255).astype(np.uint8), cv2.COLOR_GRAY2RGB)
+            font = cv2.FONT_HERSHEY_SIMPLEX
+            im = cv2.putText(im, "frame " + str(i), (50, 50), font, 2, (255, 255, 255), 4)
+            ims_out.append(im)
+        mimsave(gif_name, ims_out, duration=1)
+
+
+    fig = plt.figure()
+    ax = plt.gca()
+    ani = animation.FuncAnimation(fig, update_plot, 2, interval=interval, blit=repeat_delay, repeat_delay=0,
+                                  fargs=(ims, ax))
+    return ani, ims
+
