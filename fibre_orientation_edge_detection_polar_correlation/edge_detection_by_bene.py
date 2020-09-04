@@ -12,7 +12,7 @@ import sys
 sys.path.append("/home/user/Software/fiber-orientation")
 from plotting import *
 from cell_moement_analysis.angel_calculations import *
-from fibre_orientation import benes_edge_detection_method
+from fibre_orientation_edge_detection_polar_correlation.fibre_orientation import benes_edge_detection_method
 #import os
 #os.chdir("/home/user/Software/fiber-orientation")
 
