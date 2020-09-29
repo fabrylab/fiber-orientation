@@ -24,7 +24,7 @@ import matplotlib.pyplot as plt
 du = 0.2407
 dv = 0.2407
 dw = 1.0071
-# total image dimesnion for x y z
+# total image dimension for x y z
 image_dim = (123.02, 123.02, 122.86)
 
 # times to evaluate - or use list with certain  timesteps [23]
@@ -42,7 +42,7 @@ search_area = (int(win_um / du), int(win_um / dv), int(win_um / dw))
 # specify output folder and image stacks within the loop !
 
 # loop through time
-times = [0,7]
+times = [2]
 out_put = createFolder("out")
 for t in tqdm(times):
     print(t)
@@ -77,15 +77,16 @@ for t in tqdm(times):
 
 
     # 2d deformation field of projections
-    if t == 0:
-        s1 = 0
-        s2 = 1
+
     if t == 7:
         s1 = 0
         s2 = 40
+    else:
+        s1 = 0
+        s2 = 1
 
     # projection along z-axis
-    u2d, v2d = esa_2d(np.max(relax[:, :, s1:-s2], axis=2), np.max(alive[:, :, s1:-s2], axis=2), window_size=60,
+    u2d, v2d = esa_2d(np.max(relax[:, :, s1:-30], axis=2), np.max(alive[:, :, s1:-s2], axis=2), window_size=60,
                       overlap=30, search_area_size=60)
     u2d -= u2d.mean()
     v2d -= v2d.mean()
@@ -123,7 +124,7 @@ for t in tqdm(times):
     uf1, vf1, wf1 = replace_outliers(uf1, vf1, wf1, max_iter=1, tol=100, kernel_size=2, method='disk')
 
     # plot 3d quiver
-    fig = quiver_3D_fo(uf1, vf1, wf1, image_dim=image_dim, quiv_args={"linewidth": 1, "alpha": 0.3, "length": 2})
+    fig = quiver_3D_fo(uf1, vf1, wf1, image_dim=image_dim, quiv_args={"linewidth": 1, "alpha": 0.6, "length": 20})
     fig.savefig(os.path.join(out_put,"3d_quiv_fo%s.svg"%str(t)))
     # project the deformations
     u_proj1 = np.mean(uf1, axis=2)
